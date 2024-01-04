@@ -72,15 +72,15 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
         // Render the texture
-        //SDL_RenderCopy(renderer, imageTexture, NULL, NULL);
+        SDL_RenderCopy(renderer, imageTexture, NULL, NULL);
 
-        // Present the renderer
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
-        // Draw a filled circle
-        filledCircleColor(renderer, 400, 300, 100, SDL_MapRGB(SDL_GetWindowSurface(window)->format, 0, 0, 0));
-
-        // Present the renderer
+//        // Present the renderer
+//        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+//
+//        // Draw a filled circle
+//        filledCircleColor(renderer, 400, 300, 100, SDL_MapRGB(SDL_GetWindowSurface(window)->format, 0, 0, 0));
+//
+//        // Present the renderer
         SDL_RenderPresent(renderer);
     }
 
