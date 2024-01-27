@@ -1,0 +1,3 @@
+C:/Users/Mr.slow/CLionProjects/Bouncing Balls/cmake-build-debug/CMakeFiles/Bouncing_Balls.dir
+C:/Users/Mr.slow/CLionProjects/Bouncing Balls/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/Mr.slow/CLionProjects/Bouncing Balls/cmake-build-debug/CMakeFiles/rebuild_cache.dir
