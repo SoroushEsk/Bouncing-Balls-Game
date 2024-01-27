@@ -68,6 +68,7 @@ Color colors [20] = {{255,0,0,255},
                      {0,127,128,255}
 };
 Color Dot = {50, 70 , 120, 255};
+Color BackGround = {10, 20, 30, 220};
 
 double lineCircleImpact(double cir_x , double cir_y,double radius, double slope , double bias);
 void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window);
@@ -145,12 +146,12 @@ int main(int argc, char* argv[]) {
                 quit = true;
             }
         }
-        SDL_SetRenderDrawColor(renderer, 150, 150, 130, 100);
+        SDL_SetRenderDrawColor(renderer, BackGround.red, BackGround.green, BackGround.blue, BackGround.alpha);
         SDL_RenderClear(renderer);
+        drawBalls(renderer);
         pointing(renderer, crossbow);
         // Delay to control the loop speed
         //SDL_Delay(10);
-        drawBalls(renderer);
         SDL_RenderPresent(renderer);
     }
     outputFile.close();
@@ -192,11 +193,17 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     SDL_Point center = { 180 / 2, 130 - ballRadius-5 };  // Set the center of rotation to the center of the character
 
     while(true){
-        root = FirstRow[0];
+        if ( slope < 0 ) root = FirstRow[0];
+        else root = FirstRow[WIDTH / (2 * ballRadius)];
         while( root != nullptr ){
             lineCircle_x =lineCircleImpact(root->x, root->y, root->raduis, slope, source_y - slope * source_x) ;
-            if ( lineCircle_x != 0 ) break;
-            root = root->ball[1];
+            if ( lineCircle_x != 0 )
+            {
+                std::cout << root -> x << ' ' << root -> y << ' ' << slope << ' ' << source_y - slope * source_x << std::endl;
+                break;
+            }
+            if ( slope < 0 ) root = root->ball[1];
+            else root = root -> ball[4];
         }
 
         collisionHappened = lineCircle_x != 0 ;
@@ -359,6 +366,7 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
     int lineCircle_x;
     int incSign;
     Ball * root;
+    bool isIncX = true;
 //
     source_x = shootingBall->x;
     source_y = shootingBall->y;
@@ -408,21 +416,26 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
 
         dest_y = source_y + slope * (dest_x - source_x);
         incSign = (slope < 0) ? 1 : -1;
-        if( abs(slope ) > 70 ) shootingBallSpeed = 0.1;
-        else shootingBallSpeed = 15;
+        if ( abs(dest_x - source_x) < abs(dest_y - source_y)) isIncX = false;
+        else isIncX = true;
+
         while(true) {
             if ( slope < 0 ){
                 if ( dest_x - source_x < 0 ) break;
             } else {
                 if ( source_x - dest_x < 0 ) break;
             }
-            SDL_SetRenderDrawColor(renderer, 150, 150, 130, 100);
+            SDL_SetRenderDrawColor(renderer, BackGround.red, BackGround.green, BackGround.blue, BackGround.alpha);
             SDL_RenderClear(renderer);
 
             shootingBall->x = source_x;
             shootingBall->y = source_y;
-            source_x += shootingBallSpeed * incSign ;
-            source_y += shootingBallSpeed * incSign * slope ;
+
+            // is the slope is very high we need to decrement y axis
+            // so that's why we're using -1 instead of incSign
+            // cause y only need to be decremented
+            source_x += isIncX ? shootingBallSpeed * incSign : shootingBallSpeed * -1 / slope;
+            source_y += isIncX ? shootingBallSpeed * incSign * slope : -1 * shootingBallSpeed ;
 
             filledCircleRGBA(renderer, shootingBall->x, shootingBall->y, shootingBall->raduis, shootingBall->color[0].red,shootingBall->color[0].green,shootingBall->color[0].blue,shootingBall->color[0].alpha);
             renderTexture(crossbowShooted, renderer, (WIDTH - 180)/2, HEIGHT - 130, angle, &center, SDL_FLIP_NONE);
