@@ -7,11 +7,12 @@
 #include <SDL2/SDL.h>
 #include <SDL_image.h>
 #include <SDL2_gfx.h>
+#include <SDL2/SDL_mixer.h>
 
 
 
-#define WIDTH  900
-#define HEIGHT 800
+#define WIDTH 1080
+#define HEIGHT 720
 #define DotRadius 3
 #define DotDistance 7
 
@@ -19,7 +20,7 @@
 int ballRadius = 40;
 int FirstRowY ;
 int leveNumber = 5;
-double shootingBallSpeed = 15;
+double shootingBallSpeed = 7;
 int NUMROWS = 1;
 int numberOfTexture = 8;
 struct Color{
@@ -32,6 +33,7 @@ struct Ball {
     double x;
     double y ;
     double raduis;
+    bool isSeen;
     bool isBlack;
     bool twoColor;
     bool isChained;
@@ -50,6 +52,8 @@ int numberBall;
 Ball ** FirstRow = reinterpret_cast<Ball **>(new Ball[  WIDTH / ( 2 * ballRadius ) + 1 ] );
 Ball * shootingBall = nullptr;
 Node * visibleBalls;
+Node * allBalls;
+Node * bfsQueue;
 //----------------------------------------------------------------------------
 // declaration of color struct
 Color colors [20] = {{1,0,20,255},
@@ -67,9 +71,11 @@ Color colors [20] = {{1,0,20,255},
 };
 SDL_Texture * textures [8];
 SDL_Texture * backGround;
+SDL_Texture * menuBack;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
-
+//////////////////////////////////////////////////////////////////////////////////////
+//=============================== Function Decluration ===============================
 void setTexture(SDL_Renderer * renderer, SDL_Window * window);
 double lineCircleImpact(double cir_x , double cir_y,double radius, double slope , double bias);
 void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window);
@@ -87,7 +93,11 @@ Node * findNodeLinkedList(Ball * value, Node * root);
 void nextRow(Ball *first, bool isEven, int numColor);
 void addLastRowToLinkedList(Ball * root);
 void level(int levelNumber);
+void connectShootingBall(Node * target, int impactY, int impactX, double slope);
+int  findSameColorBall(Ball* root);
+void startGame(SDL_Renderer *renderer, SDL_Window  * window);
 
+// ============= Implementation ===================================
 int main(int argc, char* argv[]) {
 
     std::string filename = "output.txt";
@@ -107,7 +117,59 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer;
     SDLInitialization(&renderer, &window);
     setTexture(renderer, window);
+    // Load music
+    Mix_Music *music = Mix_LoadMUS("..\\Menu.mp3");
+    if (!music) {
+        exit(3);
+    }
 
+
+    // additional details of mouse
+    int mouse_x, mouse_y;
+
+    SDL_Rect back = {0, 0, WIDTH, HEIGHT};
+    SDL_Event event;
+    bool quit = false;
+    bool isMusicPlaying = false;
+    while (!quit) {
+        // Handle events
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                quit = true;
+            } else if (event.type == SDL_MOUSEBUTTONDOWN) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    SDL_GetMouseState(&mouse_x, &mouse_y);
+                    if ( mouse_y > (.94)*(double)(HEIGHT) && mouse_x > (0.12) * (double)(WIDTH) && mouse_x < (0.8) * (double)WIDTH){
+                        SDL_Delay(1000);
+                        startGame(renderer, window);
+                    }
+                    std::cout << mouse_x << " " << mouse_y << std::endl;
+                }
+            } else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
+                quit = true;
+            }
+        }
+        // Play music if it's not playing
+        if (!isMusicPlaying) {
+            Mix_PlayMusic(music, -1);
+            isMusicPlaying = true;
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, menuBack, nullptr, &back);
+
+        SDL_RenderPresent(renderer);
+    }
+    outputFile.close();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    Mix_FreeMusic(music);
+    Mix_CloseAudio();
+    SDL_Quit();
+    return 0;
+}
+void startGame(SDL_Renderer *renderer, SDL_Window  * window){
+    Mix_HaltMusic();
     // create a shooting ball
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
@@ -127,7 +189,7 @@ int main(int argc, char* argv[]) {
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
-        return 1;
+        exit(1);
     }
     SDL_Texture* shootedCrossBow = loadTexture(renderer, "..\\crossbowShooted.png");
     if (shootedCrossBow == nullptr) {
@@ -135,16 +197,17 @@ int main(int argc, char* argv[]) {
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
-        return 1;
+        exit(1);
     }
 
-    level(3);
+    level(2);
     SDL_Rect back = {0, 0, WIDTH, HEIGHT};
     while (!quit) {
         // Handle events
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 quit = true;
+                exit(2);
             }else if(event.type == SDL_MOUSEBUTTONDOWN) {
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -152,22 +215,88 @@ int main(int argc, char* argv[]) {
                 }
             }else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
                 quit = true;
+                exit(2);
             }
         }
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, backGround, nullptr, &back);
-        drawBalls(renderer);
-        pointing(renderer, crossbow);
+
+        pointing(renderer, crossbow);drawBalls(renderer);
         // Delay to control the loop speed
         //SDL_Delay(10);
         SDL_RenderPresent(renderer);
     }
-    outputFile.close();
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return 0;
+}
+void connectShootingBall(Node * target, int impactY, int impactX, double slope ){
+    if ( target == nullptr ) return ;
+    //findSameColorBall(target->value);
+    int differenceX = target -> value -> x - impactX;
+    int differenceY = target -> value -> y - impactY;
+
+    if ( slope >= 0) {
+        if ( differenceX >  0  && target -> value -> x != ballRadius ) {
+
+            shootingBall -> x = target -> value -> x - ballRadius;
+            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+            shootingBall -> ball[5] = target -> value;
+            target -> value -> ball[3] = shootingBall;
+            allBalls = AddtoLinkedList(shootingBall, allBalls);
+            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+        } else if ( differenceX < 0 ){
+            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
+
+                shootingBall -> x = target -> value -> x + 2 * ballRadius;
+                shootingBall -> y = target -> value -> y ;
+                shootingBall -> ball[3] = target -> value;
+                target -> value -> ball[0] = shootingBall;
+                allBalls = AddtoLinkedList(shootingBall, allBalls);
+                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
+                shootingBall -> x = target -> value -> x + ballRadius;
+                shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[5] = target -> value;
+                target -> value -> ball[2] = shootingBall;
+                allBalls = AddtoLinkedList(shootingBall, allBalls);
+                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
+                shootingBall -> x = target -> value -> x + ballRadius;
+                shootingBall -> y = target -> value -> y - 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[4] = target -> value;
+                target -> value -> ball[1] = shootingBall;
+                allBalls = AddtoLinkedList(shootingBall, allBalls);
+                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            }
+        }
+    }else{
+        if ( differenceX < 0 && target -> value -> x  != ( WIDTH - ( WIDTH / ( 2 * ballRadius ) + 1  )) ){
+
+            shootingBall -> x = target -> value -> x + ballRadius;
+            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+            shootingBall -> ball[4] = target -> value;
+            target -> value -> ball[1] = shootingBall;
+            allBalls = AddtoLinkedList(shootingBall, allBalls);
+            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+        } else if ( differenceX > 0 ){
+            shootingBall -> x = target -> value -> x - ballRadius;
+            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+            shootingBall -> ball[5] = target -> value;
+            target -> value -> ball[3] = shootingBall;
+            allBalls = AddtoLinkedList(shootingBall, allBalls);
+            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+        }
+    }
+
+
+}
+int  findSameColorBall(Ball* root){
+    Node * ball = allBalls;
+    while( ball != nullptr ) {
+        ball->value->isSeen = false;
+        ball = ball->next;
+    }
+
+
 }
 void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     double source_x, source_y;
@@ -176,8 +305,10 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     bool collisionHappened ;
     int lineCircle_x;
     int mouse_x, mouse_y;
-
+    double minY;
+    Node * minBall;
     Node * root = visibleBalls;
+    double minLineCircle;
 
     SDL_GetMouseState(&mouse_x, &mouse_y);
 
@@ -202,23 +333,31 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     SDL_Point center = { 180 / 2, 130 - ballRadius-5 };  // Set the center of rotation to the center of the character
 
     while(true){
-        root = visibleBalls;
-        if ( slope > 0 ) {
-            while(root->next != nullptr){
-                root = root -> next;
-            }
-        }
+        minY = 0 ;
+        minBall = nullptr;
+        minLineCircle = 0;
+        root = allBalls;
+//        if ( slope > 0 ) {
+//            while(root->next != nullptr){
+//                root = root -> next;
+//            }
+//        }
         while( root != nullptr ){
             lineCircle_x =lineCircleImpact(root->value->x, root->value->y, root->value->raduis, slope, source_y - slope * source_x) ;
             if ( lineCircle_x != 0 )
             {
-                break;
+                if ( minY < source_y + slope * (lineCircle_x - source_x)) {
+                    minY = source_y + slope * (lineCircle_x - source_x);
+                    minBall = root ;
+                    minLineCircle = lineCircle_x;
+                }
             }
-            if ( slope < 0 ) root = root->next;
-            else root = root -> previous;
+            root = root->next;
         }
-
+        root = minBall;
+        lineCircle_x = minLineCircle;
         collisionHappened = lineCircle_x != 0 ;
+
         if(collisionHappened){
             dest_x = lineCircle_x;
         }else {
@@ -245,15 +384,16 @@ void createBallRowOne (int numColor){
     int x = ballRadius, y = FirstRowY;
     Ball *ballTemp, *previousBall = nullptr;
     int isBlack;
-    for ( int ballIndex = 0 ; ballIndex <WIDTH/(2 * ballRadius) + 1 ; ballIndex++) {
+    for ( int ballIndex = 0 ; ballIndex <WIDTH/(2 * ballRadius)  ; ballIndex++) {
         ballTemp = new Ball;
         ballTemp->x = x;
         ballTemp->y = y;
         ballTemp->raduis = 40;
-        isBlack = rand()%numberOfTexture;
+        isBlack = rand()%(numberOfTexture-1) + 1;
         ballTemp->color = colors[isBlack];
         ballTemp->texture = textures[isBlack];
         ballTemp->isBlack = isBlack == 0;
+        allBalls = AddtoLinkedList(ballTemp, allBalls);
         for ( int ballptr = 0 ; ballptr < 6 ; ballptr++ ){
             ballTemp->ball[ballptr] = nullptr;
         }
@@ -270,26 +410,18 @@ void createBallRowOne (int numColor){
 
 }
 void drawBalls(SDL_Renderer *renderer){
-    Ball *root,* rootRow = FirstRow[0];
-    bool isOdd = true;
+    Node * root = allBalls;
+    Ball * currentBall;
     SDL_Rect texture;
-    for(int i = 0 ; i < NUMROWS ; i++){
-        root = rootRow;
-        while(root->ball[1] != nullptr){
-            texture = {static_cast<int>(root->x - root->raduis), static_cast<int>(root->y - root->raduis), static_cast<int>(2 * root->raduis), static_cast<int>(2 * root->raduis)};
-            SDL_RenderCopy(renderer, root->texture, nullptr, &texture);
-            root = root -> ball[1];
-        }
-        if(isOdd){
-            rootRow = rootRow -> ball[2];
-        }else{
-            rootRow = rootRow -> ball[3];
-        }
-        isOdd = !isOdd;
+    while( root != nullptr ){
+        currentBall = root -> value;
+        texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
+        SDL_RenderCopy(renderer, currentBall->texture, nullptr, &texture);
+        root = root -> next;
     }
 }
 void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window){
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
         exit(1);
     }
@@ -297,6 +429,10 @@ void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window){
         printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
         SDL_Quit();
         exit(1);
+    }
+    // Initialize SDL_mixer
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        exit(2);
     }
     // Create a window
      *window = SDL_CreateWindow(
@@ -379,11 +515,15 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
     //finding the shooting light details
     double source_x, source_y;
     double dest_x, dest_y;
+    double impact_y;
     double teta, slope;
     bool collisionHappened = false;
     int lineCircle_x;
     int incSign;
     Node * root;
+    Node * minBall;
+    double minY;
+    double minLineCircle;
     bool isIncX = true;
 //
     source_x = shootingBall->x;
@@ -414,12 +554,26 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
     if( slope > 0 ) angle -= 180;
     SDL_Point center = { 180 / 2, 130 - ballRadius-5 };  // Set the center of rotation to the center of the character
     while(true){
-        root = visibleBalls;
+        minY = 0 ;
+        minBall = nullptr;
+        minLineCircle = 0;
+        root = allBalls;
         while( root != nullptr ){
             lineCircle_x =lineCircleImpact(root->value->x, root->value->y, root->value->raduis, slope, source_y - slope * source_x) ;
-            if ( lineCircle_x != 0 ) break;
+            if ( lineCircle_x != 0 )
+            {
+                if ( minY < source_y + slope * (lineCircle_x - source_x)) {
+                    minY = source_y + slope * (lineCircle_x - source_x);
+                    minBall = root ;
+                    minLineCircle = lineCircle_x;
+                }
+            }
             root = root->next;
         }
+        root = minBall;
+        lineCircle_x = minLineCircle;
+        collisionHappened = lineCircle_x != 0 ;
+
         collisionHappened = lineCircle_x != 0 ;
         if(collisionHappened){
             dest_x = lineCircle_x - 2 * ballRadius*cos(teta);
@@ -434,20 +588,30 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
         }
 
         dest_y = source_y + slope * (dest_x - source_x);
+        impact_y = source_y + slope * (lineCircle_x - source_x);
         incSign = (slope < 0) ? 1 : -1;
         if ( abs(dest_x - source_x) < abs(dest_y - source_y)) isIncX = false;
         else isIncX = true;
+
         SDL_Rect back = {0, 0, WIDTH, HEIGHT};
+
         while(true) {
             if ( slope < 0 ){
-                if ( dest_x - source_x < 0 ) break;
+                if ( dest_x - source_x < 0 ) {
+                    connectShootingBall(root, (int)impact_y, lineCircle_x, slope);
+                    break;
+                }
             } else {
-                if ( source_x - dest_x < 0 ) break;
+                if ( source_x - dest_x < 0 ) {
+                    connectShootingBall(root, (int)impact_y, lineCircle_x, slope);
+                    break;
+                }
             }
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderClear(renderer);
             SDL_RenderCopy(renderer, backGround, nullptr, &back);
 
+            drawBalls(renderer);
             shootingBall->x = source_x;
             shootingBall->y = source_y;
 
@@ -459,7 +623,6 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
             SDL_Rect texture = {static_cast<int>(shootingBall->x - shootingBall->raduis),static_cast<int>(shootingBall->y - shootingBall->raduis), static_cast<int>(2 * shootingBall->raduis), static_cast<int>(2 * shootingBall->raduis)};
             SDL_RenderCopy(renderer, shootingBall->texture, nullptr, &texture);
             renderTexture(crossbowShooted, renderer, (WIDTH - 180)/2, HEIGHT - 130, angle, &center, SDL_FLIP_NONE);
-            drawBalls(renderer);
             SDL_RenderPresent(renderer);
 
         }
@@ -468,7 +631,7 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
         slope *= -1;
         teta = atan(slope);
 
-        if( dest_y < 0 || mouse_y == shootingBall->y || collisionHappened) break;
+        if( dest_y < FirstRowY || mouse_y == shootingBall->y || collisionHappened) break;
     }
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
@@ -523,7 +686,7 @@ Node * AddtoLinkedList(Ball* value, Node * root){
     newNode->value = value;
     newNode->next  = nullptr;
     newNode->previous = nullptr;
-    if ( visibleBalls == nullptr ){
+    if ( root == nullptr ){
         return  newNode;
     }
     Node * currentNode = root;
@@ -590,6 +753,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
         temp -> color = colors[black];
         temp -> texture = textures[black];
         temp -> isBlack = black == 0;
+        allBalls = AddtoLinkedList(temp, allBalls);
         for ( int ballptr = 0 ; ballptr < 6 ; ballptr++ ){
             temp->ball[ballptr] = nullptr;
         }
@@ -622,6 +786,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
         temp -> color = colors[black];
         temp -> texture = textures[black];
         temp -> isBlack = black == 0;
+        allBalls = AddtoLinkedList(temp, allBalls);
         for ( int ballptr = 0 ; ballptr < 6 ; ballptr++ ){
             temp->ball[ballptr] = nullptr;
         }
@@ -648,18 +813,29 @@ void level(int levelNumber){
         }
         isOdd = !isOdd;
     }
+    lastRowStart = rootRow;
     addLastRowToLinkedList(lastRowStart);
 }
 void addLastRowToLinkedList(Ball * root){
-    Node *tempNode, *previousNode = nullptr;
-    while(root ->ball[1] != nullptr){
+    if( root != nullptr ){
+        if (root -> ball[5] != nullptr )
+            visibleBalls = AddtoLinkedList(root -> ball[5], visibleBalls);
+        if (root -> ball[0] != nullptr )
+            visibleBalls = AddtoLinkedList(root -> ball[0], visibleBalls);
+    }
+    while(root -> ball[1]  != nullptr){
         visibleBalls = AddtoLinkedList(root, visibleBalls);
         root = root -> ball[1];
     }
+    visibleBalls = AddtoLinkedList(root, visibleBalls);
+    if (root -> ball[5] != nullptr )
+        visibleBalls = AddtoLinkedList(root -> ball[5], visibleBalls);
+    if (root -> ball[0] != nullptr )
+        visibleBalls = AddtoLinkedList(root -> ball[0], visibleBalls);
 }
 void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     // --------------- setting the back ground color ----------------
-    SDL_Texture* background = loadTexture(renderer, "..\\Background.png");
+    SDL_Texture* background = loadTexture(renderer, "..\\GameBack.jpg");
     if (background == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -667,7 +843,15 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
         SDL_Quit();
         exit(1);
     } backGround = background;
-
+    // --------------- setting the menu background color ----------------
+    SDL_Texture* menu_background = loadTexture(renderer, "..\\photo_2024-01-29_16-03-55.jpg");
+    if (menu_background == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    } menuBack = menu_background;
     // ---------------- set other balls texture in the array ----------------
     SDL_Texture* blackBall = loadTexture(renderer, "..\\BackBall.png");
     if (blackBall == nullptr) {
@@ -735,3 +919,12 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     textures[6] = redBall;
     textures[7] = yellowBall;
 }
+
+//
+//while( ball != nullptr ) {
+//ball->value->isSeen = false;
+//ball = ball->next;
+//}
+//for ( int i_firstBall_i = 0 ; i_firstBall_i < WIDTH / ( 2 * ballRadius ) + 1; i_firstBall_i++){
+//
+//}
