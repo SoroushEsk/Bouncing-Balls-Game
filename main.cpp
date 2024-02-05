@@ -23,7 +23,8 @@ int leveNumber = 5;
 double shootingBallSpeed = 20;
 int NUMROWS = 1;
 int numberOfTexture = 8;
-
+int impactUp = -6;
+double downSpeed = 0.1;
 struct Color{
     int red;
     int green;
@@ -379,7 +380,11 @@ void deleteBalls(Node * sameColor){
         free(temp->value);
         free(temp);
     }
-
+    Node *ball = allBalls;
+    while ( ball != nullptr ) {
+        ball -> value -> y += impactUp;
+        ball = ball -> next;
+    }
 }
 void shootingBallAroundBalls(){
     Node * root = allBalls;
@@ -575,6 +580,7 @@ void drawBalls(SDL_Renderer *renderer){
         currentBall = root -> value;
         texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
         SDL_RenderCopy(renderer, currentBall->texture, nullptr, &texture);
+        root -> value -> y += downSpeed;
         root = root -> next;
     }
 }
