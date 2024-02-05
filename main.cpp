@@ -11,18 +11,19 @@
 
 
 
-#define WIDTH 1080
+#define WIDTH 720
 #define HEIGHT 720
 #define DotRadius 3
 #define DotDistance 7
 
 
-int ballRadius = 40;
+int ballRadius = WIDTH / 30;
 int FirstRowY ;
 int leveNumber = 5;
-double shootingBallSpeed = 7;
+double shootingBallSpeed = 20;
 int NUMROWS = 1;
 int numberOfTexture = 8;
+
 struct Color{
     int red;
     int green;
@@ -30,15 +31,28 @@ struct Color{
     int alpha;
 };
 struct Ball {
+
     double x;
     double y ;
     double raduis;
+    // for bfs
     bool isSeen;
+    // for balls that cant be destroyed with shootingBall
     bool isBlack;
+
     bool twoColor;
+
     bool isChained;
+
+    bool isMultiColor;
+
+    bool isBomb;
+
+    bool isLaser;
+
     Color color;
     SDL_Texture * texture;
+    SDL_Texture * texture1 = nullptr;
     Ball * ball[6];
 };
 struct Node{
@@ -74,6 +88,7 @@ SDL_Texture * backGround;
 SDL_Texture * menuBack;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
+
 //////////////////////////////////////////////////////////////////////////////////////
 //=============================== Function Decluration ===============================
 void setTexture(SDL_Renderer * renderer, SDL_Window * window);
@@ -94,8 +109,11 @@ void nextRow(Ball *first, bool isEven, int numColor);
 void addLastRowToLinkedList(Ball * root);
 void level(int levelNumber);
 void connectShootingBall(Node * target, int impactY, int impactX, double slope);
-int  findSameColorBall(Ball* root);
+Node *  findSameColorBall(Ball* target, int *Count);
 void startGame(SDL_Renderer *renderer, SDL_Window  * window);
+void shootingBallAroundBalls();
+void deleteBalls(Node * sameColor);
+Node * findFloatingBalls();
 
 // ============= Implementation ===================================
 int main(int argc, char* argv[]) {
@@ -233,69 +251,209 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
     //findSameColorBall(target->value);
     int differenceX = target -> value -> x - impactX;
     int differenceY = target -> value -> y - impactY;
-
+    Ball * targetBall = target -> value ;
     if ( slope >= 0) {
         if ( differenceX >  0  && target -> value -> x != ballRadius ) {
-
-            shootingBall -> x = target -> value -> x - ballRadius;
-            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-            shootingBall -> ball[5] = target -> value;
-            target -> value -> ball[3] = shootingBall;
-            allBalls = AddtoLinkedList(shootingBall, allBalls);
-            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            ///////////////////////////////////////////////////////////////
+            shootingBall -> x = targetBall -> x - ballRadius;
+            shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
+            shootingBall -> ball[0] = targetBall;
+            targetBall -> ball[3] = shootingBall;
         } else if ( differenceX < 0 ){
             if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
 
-                shootingBall -> x = target -> value -> x + 2 * ballRadius;
-                shootingBall -> y = target -> value -> y ;
-                shootingBall -> ball[3] = target -> value;
-                target -> value -> ball[0] = shootingBall;
-                allBalls = AddtoLinkedList(shootingBall, allBalls);
-                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+                ///////////////////////////////////////////////////////////////
+                shootingBall -> x = targetBall -> x + 2 * ballRadius;
+                shootingBall -> y = targetBall -> y ;
+                shootingBall -> ball[4] = targetBall;
+                targetBall -> ball[1] = shootingBall;
             } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
+                ///////////////////////////////////////////////////////////////
+                shootingBall -> x = targetBall -> x + ballRadius;
+                shootingBall -> y = targetBall -> y - 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[3] = targetBall;
+                targetBall -> ball[0] = shootingBall;
+            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
+                ///////////////////////////////////////////////////////////////
                 shootingBall -> x = target -> value -> x + ballRadius;
                 shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[5] = target -> value;
-                target -> value -> ball[2] = shootingBall;
-                allBalls = AddtoLinkedList(shootingBall, allBalls);
-                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
-            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
-                shootingBall -> x = target -> value -> x + ballRadius;
-                shootingBall -> y = target -> value -> y - 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[4] = target -> value;
-                target -> value -> ball[1] = shootingBall;
-                allBalls = AddtoLinkedList(shootingBall, allBalls);
-                visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+                shootingBall -> ball[5] = targetBall;
+                targetBall -> ball[2] = shootingBall;
             }
         }
-    }else{
+    }
+    else{
         if ( differenceX < 0 && target -> value -> x  != ( WIDTH - ( WIDTH / ( 2 * ballRadius ) + 1  )) ){
+            ///////////////////////////////////////////////////////////////
 
-            shootingBall -> x = target -> value -> x + ballRadius;
-            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-            shootingBall -> ball[4] = target -> value;
-            target -> value -> ball[1] = shootingBall;
-            allBalls = AddtoLinkedList(shootingBall, allBalls);
-            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            shootingBall -> x = targetBall -> x + ballRadius;
+            shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
+            shootingBall -> ball[4] = targetBall;
+            targetBall -> ball[1] = shootingBall;
         } else if ( differenceX > 0 ){
-            shootingBall -> x = target -> value -> x - ballRadius;
-            shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-            shootingBall -> ball[5] = target -> value;
-            target -> value -> ball[3] = shootingBall;
-            allBalls = AddtoLinkedList(shootingBall, allBalls);
-            visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
+                ///////////////////////////////////////////////////////////////
+
+                shootingBall -> x = targetBall -> x - 2 * ballRadius;
+                shootingBall -> y = targetBall -> y ;
+                shootingBall -> ball[4] = targetBall;
+                targetBall -> ball[1] = shootingBall;
+            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
+                ///////////////////////////////////////////////////////////////
+                shootingBall -> x = targetBall -> x - ballRadius;
+                shootingBall -> y = targetBall -> y - 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[3] = targetBall;
+                targetBall -> ball[0] = shootingBall;
+            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
+                ///////////////////////////////////////////////////////////////
+                shootingBall -> x = targetBall -> x - ballRadius;
+                shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[5] = targetBall;
+                targetBall -> ball[2] = shootingBall;
+            }
         }
+    }
+    allBalls = AddtoLinkedList(shootingBall, allBalls);
+    visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
+    shootingBallAroundBalls();
+    int sameColorNumber = 0;
+    Node * sameColor = findSameColorBall(shootingBall, &sameColorNumber);
+    if ( sameColorNumber >= 3 ) deleteBalls(sameColor);
+    findFloatingBalls();
+}
+Node * findFloatingBalls(){
+    Node * ball = allBalls;
+    while ( ball != nullptr ) {
+        ball->value->isSeen = false;
+        ball = ball-> next;
+    }
+    Node * floatingBalls = nullptr;
+    Node * temp;
+    Ball * target;
+    for ( int rowOneIndex = 0 ; rowOneIndex < (  WIDTH / ( 2 * ballRadius ) + 1 ) ; rowOneIndex++){
+        if ( FirstRow[rowOneIndex] == nullptr ) continue;
+        bfsQueue = nullptr;
+        bfsQueue = AddtoLinkedList(FirstRow[rowOneIndex], bfsQueue);
+        FirstRow[rowOneIndex] -> isSeen = true;
+        target = FirstRow[rowOneIndex];
+
+        while ( bfsQueue != nullptr ){
+            for ( int i = 0 ; i < 6 ; i++ ) {
+                if ( target -> ball[i] != nullptr ) {
+                    if (!target->ball[i]->isSeen){
+                        bfsQueue = AddtoLinkedList(target->ball[i], bfsQueue);
+                        target->ball[i]->isSeen = true;
+                    }
+                }
+            }
+            temp = bfsQueue;
+            bfsQueue = bfsQueue -> next;
+            free(temp);
+            if (bfsQueue != nullptr)
+                target   = bfsQueue -> value;
+
+        }
+    }
+    ball = allBalls;
+    while(ball != nullptr){
+        if ( !ball-> value-> isSeen ){
+            floatingBalls = AddtoLinkedList(ball->value, floatingBalls);
+        }
+        ball = ball -> next;
+    }
+    deleteBalls(floatingBalls);
+    return floatingBalls;
+}
+void deleteBalls(Node * sameColor){
+    Node * root = sameColor, * temp;
+    while ( root != nullptr ){
+        allBalls = deleteFromLinkedList(root->value, allBalls);
+        for ( int ballAdj = 0 ; ballAdj < 6 ; ballAdj++ ){
+            if ( root -> value -> ball[ballAdj] != nullptr) {
+                root->value->ball[ballAdj]->ball[(ballAdj + 3) % 6] = nullptr;
+                root->value->ball[ballAdj] = nullptr;
+            }
+        }
+        temp = root;
+        root = root -> next;
+        free(temp->value);
+        free(temp);
+    }
+
+}
+void shootingBallAroundBalls(){
+    Node * root = allBalls;
+    int differenceX, differenceY;
+    Ball * targetBall;
+    while ( root != nullptr){
+        differenceX =  shootingBall -> x - root -> value -> x;
+        differenceY =  shootingBall -> y - root -> value -> y;
+        targetBall  = root -> value;
+        if ( abs(differenceY) <= 1 ){
+
+            if ( differenceX < 3*ballRadius && differenceX > ballRadius ){
+                shootingBall -> ball[4] = targetBall;
+                targetBall -> ball[1] = shootingBall;
+            }else if ( differenceX < -ballRadius && differenceX > -3 * ballRadius){
+                shootingBall -> ball[1] = targetBall;
+                targetBall -> ball[4] = shootingBall;
+            }
+        }else if ( differenceY <= (ballRadius * 2  ) && differenceY >= ( ballRadius )){
+
+            if ( differenceX >= 0 && differenceX <= ballRadius){
+                shootingBall -> ball[5] = targetBall;
+                targetBall -> ball[2] = shootingBall;
+            }else if ( differenceX <= 0 && differenceX >= -ballRadius ){
+                shootingBall -> ball[0] = targetBall;
+                targetBall -> ball[3] = shootingBall;
+            }
+        }else if( differenceY >= (-2 * ballRadius) && differenceY <= ( -1 * ballRadius )){
+
+            if ( differenceX >= 0 && differenceX <= ballRadius){
+                shootingBall -> ball[2] = targetBall;
+                targetBall -> ball[5] = shootingBall;
+            }else if ( differenceX <= 0 && differenceX >= -ballRadius ){
+                shootingBall -> ball[3] = targetBall;
+                targetBall -> ball[0] = shootingBall;
+            }
+        }
+
+        root = root -> next;
     }
 
 
 }
-int  findSameColorBall(Ball* root){
+Node *  findSameColorBall(Ball* target, int *Count){
     Node * ball = allBalls;
     while( ball != nullptr ) {
         ball->value->isSeen = false;
         ball = ball->next;
     }
+    Node * sameColor = nullptr, *temp;
+    bfsQueue = nullptr;
+    bfsQueue = AddtoLinkedList(target, bfsQueue);
+    target -> isSeen = true;
+    *Count = 1;
+    while (bfsQueue != nullptr){
+        for ( int i = 0 ; i < 6 ; i++){
+            if(target->ball[i] != nullptr ) {
+                if ( target -> ball[i] -> texture == target -> texture && !target -> ball[i] -> isSeen) {
+                    bfsQueue = AddtoLinkedList(target->ball[i], bfsQueue);
+                    target->ball[i]->isSeen = true;
+                    ((*Count)) ++;
+                }
+            }
+        }
+        temp = bfsQueue;
+        bfsQueue = bfsQueue -> next;
+        free(temp);
+        sameColor = AddtoLinkedList(target, sameColor);
+        if (bfsQueue != nullptr)
+             target   = bfsQueue -> value;
 
+    }
+
+    return sameColor;
 
 }
 void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
@@ -388,7 +546,7 @@ void createBallRowOne (int numColor){
         ballTemp = new Ball;
         ballTemp->x = x;
         ballTemp->y = y;
-        ballTemp->raduis = 40;
+        ballTemp->raduis = ballRadius;
         isBlack = rand()%(numberOfTexture-1) + 1;
         ballTemp->color = colors[isBlack];
         ballTemp->texture = textures[isBlack];
@@ -403,7 +561,7 @@ void createBallRowOne (int numColor){
         }
         FirstRow[ballIndex] =  ballTemp;
         previousBall = ballTemp;
-        x+=80;
+        x+=2*ballRadius;
     }
 
 
@@ -500,7 +658,7 @@ void createShootingBall(int levelNum, SDL_Renderer * renderer){
 
     shootingBall = new Ball;
     shootingBall -> x = WIDTH/2;
-    shootingBall -> y = HEIGHT - 40;
+    shootingBall -> y = HEIGHT - ballRadius;
     int index = rand()%7 + 1;
     shootingBall ->color = colors[index];
     shootingBall -> raduis = ballRadius;
@@ -748,7 +906,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
         Ball * temp = new Ball;
         temp -> x = x;
         temp -> y = y ;
-        temp -> raduis = 40;
+        temp -> raduis = ballRadius;
         black = rand()%numberOfTexture;
         temp -> color = colors[black];
         temp -> texture = textures[black];
@@ -771,7 +929,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
             prev->ball[1] = temp;
         }
         prev = temp;
-        x += 80;
+        x += 2*ballRadius;
         first = second;
         if( second != nullptr)
             second = second -> ball[1];
@@ -781,7 +939,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
         Ball * temp = new Ball;
         temp -> x = x;
         temp -> y = y ;
-        temp -> raduis = 40;
+        temp -> raduis = ballRadius;
         black = rand()%numberOfTexture;
         temp -> color = colors[black];
         temp -> texture = textures[black];
@@ -799,7 +957,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
 void level(int levelNumber){
     NUMROWS = levelNumber * 3 ;
     int numColor = levelNumber ;
-    FirstRowY = -40*sqrt(3)*(NUMROWS - 1 - 5);
+    FirstRowY = -ballRadius*sqrt(3)*(NUMROWS - 1 - 5);
     createBallRowOne(numColor);
     Ball * rootRow = FirstRow[0], *lastRowStart;
     bool isOdd = true;
