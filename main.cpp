@@ -1,9 +1,11 @@
 #include <iostream>
+#include <unordered_map>
 #include <fstream>
 #include <vector>
 #include <cstdlib> // For rand and srand functions
 #include <ctime>   // For time function
 
+#include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL.h>
 #include <SDL_image.h>
 #include <SDL2_gfx.h>
@@ -11,20 +13,23 @@
 
 
 
-#define WIDTH 720
-#define HEIGHT 720
+#define WIDTH 1000
+#define HEIGHT 1000
 #define DotRadius 3
 #define DotDistance 7
+const int FONT_SIZE = 24;
 
-
+/// ******************* Changeable Constraints ****************
 int ballRadius = WIDTH / 30;
 int FirstRowY ;
 int leveNumber = 5;
-double shootingBallSpeed = 20;
+double shootingBallSpeed = 25;
 int NUMROWS = 1;
-int numberOfTexture = 8;
+int numberOfTexture = 7;
 int impactUp = -6;
 double downSpeed = 0.1;
+int numberBall;
+/// ==================== Struct Definition =====================
 struct Color{
     int red;
     int green;
@@ -52,6 +57,7 @@ struct Ball {
     bool isLaser;
 
     Color color;
+    Color color1;
     SDL_Texture * texture;
     SDL_Texture * texture1 = nullptr;
     Ball * ball[6];
@@ -62,13 +68,20 @@ struct Node{
     Node * previous;
 };
 
-int numberBall;
+/// ==================== Enum Definition  ======================
+enum GameMode {
+    Random,
+    TimeLimit,
+    Infinite
+};
 
+/// -------------------- Global struct Variables --------------------------------------------
 Ball ** FirstRow = reinterpret_cast<Ball **>(new Ball[  WIDTH / ( 2 * ballRadius ) + 1 ] );
 Ball * shootingBall = nullptr;
 Node * visibleBalls;
 Node * allBalls;
 Node * bfsQueue;
+
 //----------------------------------------------------------------------------
 // declaration of color struct
 Color colors [20] = {{1,0,20,255},
@@ -89,12 +102,15 @@ SDL_Texture * backGround;
 SDL_Texture * menuBack;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
+std::unordered_map<SDL_Texture*, Color*> existingColor;
 
+
+SDL_Texture* gTextTexture = nullptr;
 //////////////////////////////////////////////////////////////////////////////////////
 //=============================== Function Decluration ===============================
 void setTexture(SDL_Renderer * renderer, SDL_Window * window);
 double lineCircleImpact(double cir_x , double cir_y,double radius, double slope , double bias);
-void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window);
+void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window, TTF_Font** gFont);
 void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, int mouse_x, int mouse_y);
 void createShootingBall(int levelNum, SDL_Renderer * renderer);
 void dotedLine(SDL_Renderer * renderer, double x0, double y0, double x1 , double y1);
@@ -111,14 +127,16 @@ void addLastRowToLinkedList(Ball * root);
 void level(int levelNumber);
 void connectShootingBall(Node * target, int impactY, int impactX, double slope);
 Node *  findSameColorBall(Ball* target, int *Count);
-void startGame(SDL_Renderer *renderer, SDL_Window  * window);
+void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode);
 void shootingBallAroundBalls();
 void deleteBalls(Node * sameColor);
 Node * findFloatingBalls();
+void addBarred(SDL_Renderer *renderer, SDL_Window  * window,bool isDisplay);
+void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text, int x, int y);
 
 // ============= Implementation ===================================
 int main(int argc, char* argv[]) {
-
+//    srand(1);
     std::string filename = "output.txt";
 
     // Create an ofstream object and open the file
@@ -134,14 +152,14 @@ int main(int argc, char* argv[]) {
     // ------------- SDL Initialization ------------
     SDL_Window* window;
     SDL_Renderer* renderer;
-    SDLInitialization(&renderer, &window);
+    TTF_Font* gFont = nullptr;
+    SDLInitialization(&renderer, &window, &gFont);
     setTexture(renderer, window);
     // Load music
     Mix_Music *music = Mix_LoadMUS("..\\Menu.mp3");
     if (!music) {
         exit(3);
     }
-
 
     // additional details of mouse
     int mouse_x, mouse_y;
@@ -150,6 +168,8 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     bool quit = false;
     bool isMusicPlaying = false;
+    bool isMusicStop = false;
+    std::string inputText = "";
     while (!quit) {
         // Handle events
         while (SDL_PollEvent(&event)) {
@@ -159,13 +179,29 @@ int main(int argc, char* argv[]) {
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     SDL_GetMouseState(&mouse_x, &mouse_y);
                     if ( mouse_y > (.94)*(double)(HEIGHT) && mouse_x > (0.12) * (double)(WIDTH) && mouse_x < (0.8) * (double)WIDTH){
-                        SDL_Delay(1000);
-                        startGame(renderer, window);
+
+                        startGame(renderer, window, Random);
+                    } else if ( mouse_y >= (0.47)*(double)(HEIGHT) && mouse_y <= (0.56)*(double)(HEIGHT) && mouse_x <= (0.16)*(double)(WIDTH) && mouse_x >= (0.06)*(double)(WIDTH)){
+                        isMusicStop = !isMusicStop;
+                        if (!isMusicStop) {
+                            Mix_PlayMusic(music, -1);
+                        }else {
+                            Mix_HaltMusic();
+                        }
                     }
                     std::cout << mouse_x << " " << mouse_y << std::endl;
                 }
             } else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
                 quit = true;
+            }else if (event.type == SDL_KEYDOWN) {
+                if (event.key.keysym.sym == SDLK_RETURN) {
+                    std::cout << "Entered text: " << inputText << std::endl;
+                    inputText = "";
+                } else if (event.key.keysym.sym == SDLK_BACKSPACE && !inputText.empty()) {
+                    inputText.pop_back();
+                } else if ((event.key.keysym.sym >= SDLK_a && event.key.keysym.sym <= SDLK_z) || (event.key.keysym.sym >= SDLK_0 && event.key.keysym.sym <= SDLK_9)) {
+                    inputText += static_cast<char>(event.key.keysym.sym);
+                }
             }
         }
         // Play music if it's not playing
@@ -176,7 +212,8 @@ int main(int argc, char* argv[]) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, menuBack, nullptr, &back);
-
+        renderText(renderer, gFont, "Enter text: " + inputText, 10, 10);
+        addBarred(renderer, window, isMusicStop);
         SDL_RenderPresent(renderer);
     }
     outputFile.close();
@@ -187,9 +224,11 @@ int main(int argc, char* argv[]) {
     SDL_Quit();
     return 0;
 }
-void startGame(SDL_Renderer *renderer, SDL_Window  * window){
+void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode){
     Mix_HaltMusic();
     // create a shooting ball
+    level(1);
+    drawBalls(renderer);
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
     Dot.green = shootingBall->color.green;
@@ -219,7 +258,7 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window){
         exit(1);
     }
 
-    level(2);
+
     SDL_Rect back = {0, 0, WIDTH, HEIGHT};
     while (!quit) {
         // Handle events
@@ -247,6 +286,20 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window){
         SDL_RenderPresent(renderer);
     }
 }
+void addBarred(SDL_Renderer *renderer, SDL_Window  * window,bool isDiplay){
+    SDL_Texture* bar = loadTexture(renderer, "..\\barred.png");
+    if (bar == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
+    if (isDiplay){
+        SDL_Rect display = {static_cast<int>((0.06)*(double)(WIDTH)), static_cast<int>((0.47)*(double)(HEIGHT)), static_cast<int>((0.1)*(double)(WIDTH)), static_cast<int>((0.09)*(double)(HEIGHT))};
+        SDL_RenderCopy(renderer, bar, nullptr, &display);
+    }
+}
 void connectShootingBall(Node * target, int impactY, int impactX, double slope ){
     if ( target == nullptr ) return ;
     //findSameColorBall(target->value);
@@ -254,26 +307,46 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
     int differenceY = target -> value -> y - impactY;
     Ball * targetBall = target -> value ;
     if ( slope >= 0) {
-        if ( differenceX >  0  && target -> value -> x != ballRadius ) {
-            ///////////////////////////////////////////////////////////////
-            shootingBall -> x = targetBall -> x - ballRadius;
-            shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-            shootingBall -> ball[0] = targetBall;
-            targetBall -> ball[3] = shootingBall;
+        if ( differenceX >  0  && target -> value -> x != ballRadius && target -> value -> x  != ( WIDTH - ballRadius ) ) {
+            if ( targetBall->ball[3] ){
+                shootingBall -> x = target -> value -> x + ballRadius;
+                shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[5] = targetBall;
+                targetBall -> ball[2] = shootingBall;
+            }
+            else {
+                shootingBall->x = targetBall->x - ballRadius;
+                shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                shootingBall->ball[0] = targetBall;
+                targetBall->ball[3] = shootingBall;
+            }
         } else if ( differenceX < 0 ){
             if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
-
-                ///////////////////////////////////////////////////////////////
-                shootingBall -> x = targetBall -> x + 2 * ballRadius;
-                shootingBall -> y = targetBall -> y ;
-                shootingBall -> ball[4] = targetBall;
-                targetBall -> ball[1] = shootingBall;
+                if ( targetBall -> ball[1] ){
+                    shootingBall -> x = target -> value -> x + ballRadius;
+                    shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
+                    shootingBall -> ball[5] = targetBall;
+                    targetBall -> ball[2] = shootingBall;
+                }
+                else {
+                    shootingBall -> x = targetBall -> x + 2 * ballRadius;
+                    shootingBall -> y = targetBall -> y ;
+                    shootingBall -> ball[4] = targetBall;
+                    targetBall -> ball[1] = shootingBall;
+                }
             } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
-                ///////////////////////////////////////////////////////////////
-                shootingBall -> x = targetBall -> x + ballRadius;
-                shootingBall -> y = targetBall -> y - 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[3] = targetBall;
-                targetBall -> ball[0] = shootingBall;
+                if (targetBall -> ball[0]){
+                    shootingBall -> x = targetBall -> x + 2 * ballRadius;
+                    shootingBall -> y = targetBall -> y ;
+                    shootingBall -> ball[4] = targetBall;
+                    targetBall -> ball[1] = shootingBall;
+                }
+                else {
+                    shootingBall->x = targetBall->x + ballRadius;
+                    shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[3] = targetBall;
+                    targetBall->ball[0] = shootingBall;
+                }
             } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
                 ///////////////////////////////////////////////////////////////
                 shootingBall -> x = target -> value -> x + ballRadius;
@@ -284,33 +357,51 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
         }
     }
     else{
-        if ( differenceX < 0 && target -> value -> x  != ( WIDTH - ( WIDTH / ( 2 * ballRadius ) + 1  )) ){
-            ///////////////////////////////////////////////////////////////
-
-            shootingBall -> x = targetBall -> x + ballRadius;
-            shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-            shootingBall -> ball[4] = targetBall;
-            targetBall -> ball[1] = shootingBall;
-        } else if ( differenceX > 0 ){
-            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
-                ///////////////////////////////////////////////////////////////
-
-                shootingBall -> x = targetBall -> x - 2 * ballRadius;
-                shootingBall -> y = targetBall -> y ;
-                shootingBall -> ball[4] = targetBall;
-                targetBall -> ball[1] = shootingBall;
-            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
-                ///////////////////////////////////////////////////////////////
-                shootingBall -> x = targetBall -> x - ballRadius;
-                shootingBall -> y = targetBall -> y - 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[3] = targetBall;
-                targetBall -> ball[0] = shootingBall;
-            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
-                ///////////////////////////////////////////////////////////////
+        if ( differenceX < 0 && target -> value -> x  != ( WIDTH - ballRadius )  && target -> value -> x != ballRadius ){
+            if ( targetBall -> ball[2]){
                 shootingBall -> x = targetBall -> x - ballRadius;
                 shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[5] = targetBall;
-                targetBall -> ball[2] = shootingBall;
+                shootingBall -> ball[0] = targetBall;
+                targetBall -> ball[3] = shootingBall;
+            }
+            else {
+                shootingBall->x = targetBall->x + ballRadius;
+                shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                shootingBall->ball[5] = targetBall;
+                targetBall->ball[2] = shootingBall;
+            }
+        } else if ( differenceX > 0 ){
+            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
+                if ( targetBall->ball[4] ){
+                    shootingBall -> x = targetBall -> x - ballRadius;
+                    shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
+                    shootingBall -> ball[0] = targetBall;
+                    targetBall -> ball[3] = shootingBall;
+                }
+                else{
+                    shootingBall -> x = targetBall -> x - 2 * ballRadius;
+                    shootingBall -> y = targetBall -> y ;
+                    shootingBall -> ball[1] = targetBall;
+                    targetBall -> ball[4] = shootingBall;
+                }
+            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
+                if ( targetBall -> ball[5] ){
+                    shootingBall -> x = targetBall -> x - 2 * ballRadius;
+                    shootingBall -> y = targetBall -> y ;
+                    shootingBall -> ball[1] = targetBall;
+                    targetBall -> ball[4] = shootingBall;
+                }
+                else {
+                    shootingBall->x = targetBall->x - ballRadius;
+                    shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[2] = targetBall;
+                    targetBall->ball[5] = shootingBall;
+                }
+            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
+                shootingBall -> x = targetBall -> x - ballRadius;
+                shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
+                shootingBall -> ball[0] = targetBall;
+                targetBall -> ball[3] = shootingBall;
             }
         }
     }
@@ -319,8 +410,10 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
     shootingBallAroundBalls();
     int sameColorNumber = 0;
     Node * sameColor = findSameColorBall(shootingBall, &sameColorNumber);
-    if ( sameColorNumber >= 3 ) deleteBalls(sameColor);
-    findFloatingBalls();
+    if ( sameColorNumber >= 3 ) {
+        deleteBalls(sameColor);
+        findFloatingBalls();
+    }
 }
 Node * findFloatingBalls(){
     Node * ball = allBalls;
@@ -331,7 +424,7 @@ Node * findFloatingBalls(){
     Node * floatingBalls = nullptr;
     Node * temp;
     Ball * target;
-    for ( int rowOneIndex = 0 ; rowOneIndex < (  WIDTH / ( 2 * ballRadius ) + 1 ) ; rowOneIndex++){
+    for ( int rowOneIndex = 0 ; rowOneIndex < (  WIDTH / ( 2 * ballRadius ) ) ; rowOneIndex++){
         if ( FirstRow[rowOneIndex] == nullptr ) continue;
         bfsQueue = nullptr;
         bfsQueue = AddtoLinkedList(FirstRow[rowOneIndex], bfsQueue);
@@ -479,7 +572,6 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     source_y = shootingBall->y;
     dest_y   = mouse_y;
     dest_x   = mouse_x;
-
     slope    = (dest_y - source_y) / (dest_x - source_x);
 
     if(slope > -0.1 && source_x < dest_x) {
@@ -487,8 +579,8 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
     }else if( slope < 0.1 && source_x > dest_x){
         slope =  0.1;
     }
-    if(slope >  10000) slope = 0.001;
-    if(slope < -10000) slope = 0.001;
+    if(slope >  1000) slope = 0.001;
+    if(slope < -1000) slope = 0.001;
 
     teta = atan(slope);
     double angle =  teta * 180 / M_PI + 90 ;  // Rotate based on time
@@ -505,6 +597,7 @@ void pointing(SDL_Renderer * renderer,SDL_Texture * crossbow){
 //                root = root -> next;
 //            }
 //        }
+
         while( root != nullptr ){
             lineCircle_x =lineCircleImpact(root->value->x, root->value->y, root->value->raduis, slope, source_y - slope * source_x) ;
             if ( lineCircle_x != 0 )
@@ -576,15 +669,18 @@ void drawBalls(SDL_Renderer *renderer){
     Node * root = allBalls;
     Ball * currentBall;
     SDL_Rect texture;
+    existingColor.clear();
     while( root != nullptr ){
         currentBall = root -> value;
         texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
         SDL_RenderCopy(renderer, currentBall->texture, nullptr, &texture);
         root -> value -> y += downSpeed;
+        if ( root -> value -> texture != textures[0] )
+            existingColor[root->value->texture] = &root->value->color;
         root = root -> next;
     }
 }
-void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window){
+void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window, TTF_Font** gFont){
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
         exit(1);
@@ -593,6 +689,10 @@ void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window){
         printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
         SDL_Quit();
         exit(1);
+    }
+    if (TTF_Init() == -1) {
+        std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError() << std::endl;
+        exit(3);
     }
     // Initialize SDL_mixer
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
@@ -621,7 +721,11 @@ void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window){
         SDL_Quit();
         exit(1);
     }
-
+    *gFont = TTF_OpenFont("..\\Font\\TechnoRaceItalic-eZRWe.otf", FONT_SIZE);
+    if (gFont == nullptr) {
+        std::cerr << "Failed to load font! SDL_ttf Error: " << TTF_GetError() << std::endl;
+        exit(3);
+    }
 }
 void dotedLine(SDL_Renderer * renderer, double x0, double y0, double x1, double y1){
     double teta = atan((y1-y0)/(x1-x0));
@@ -661,15 +765,22 @@ void dotedLine(SDL_Renderer * renderer, double x0, double y0, double x1, double 
     }
 }
 void createShootingBall(int levelNum, SDL_Renderer * renderer){
+    int index = rand()%existingColor.size();
+    int i = 0;
+    SDL_Texture * properTexture;
+    for (std::pair<SDL_Texture *const, Color *> pair : existingColor){
+        properTexture = pair.first;
+        if( i == index ) break;
+        i++;
+    }
 
     shootingBall = new Ball;
     shootingBall -> x = WIDTH/2;
     shootingBall -> y = HEIGHT - ballRadius;
-    int index = rand()%7 + 1;
-    shootingBall ->color = colors[index];
+    shootingBall ->color = *existingColor[properTexture];
     shootingBall -> raduis = ballRadius;
     shootingBall -> isBlack = false;
-    shootingBall -> texture = textures[index];
+    shootingBall -> texture = properTexture;
 
     for ( int  b = 0 ; b < 6 ; b++ ){
         shootingBall-> ball[b] = nullptr;
@@ -710,9 +821,9 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
     }else if( slope < 0.1 && source_x > dest_x){
         slope =  0.1;
     }
-    if(slope >  10000) slope = 0.001;
-    if(slope < -10000) slope = 0.001;
-//
+    if(slope >  1000) slope = 0.001;
+    if(slope < -1000) slope = 0.001;
+
     teta = atan(slope);
     double angle =  teta * 180 / M_PI + 90 ;  // Rotate based on time
     if( slope > 0 ) angle -= 180;
@@ -1017,56 +1128,56 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
         exit(1);
     } menuBack = menu_background;
     // ---------------- set other balls texture in the array ----------------
-    SDL_Texture* blackBall = loadTexture(renderer, "..\\BackBall.png");
+    SDL_Texture* blackBall = loadTexture(renderer, "..\\Balls\\BackBall.png");
     if (blackBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(1);
-    }    SDL_Texture* blueBall = loadTexture(renderer, "..\\BlueBall.png");
+    }    SDL_Texture* blueBall = loadTexture(renderer, "..\\Balls\\BlueBall.png");
     if (blueBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(2);
-    }    SDL_Texture* brownBall = loadTexture(renderer, "..\\BrownBall.png");
+    }    SDL_Texture* brownBall = loadTexture(renderer, "..\\Balls\\BrownBall.png");
     if (brownBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(3);
-    }    SDL_Texture* greenBall = loadTexture(renderer, "..\\GreenBall.png");
+    }    SDL_Texture* greenBall = loadTexture(renderer, "..\\Balls\\GreenBall.png");
     if (greenBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(4);
-    }    SDL_Texture* pinkBall = loadTexture(renderer, "..\\pinkBall.png");
+    }    SDL_Texture* pinkBall = loadTexture(renderer, "..\\Balls\\pinkBall.png");
     if (pinkBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(5);
-    }SDL_Texture* purpleBall = loadTexture(renderer, "..\\purpleBall.png");
+    }SDL_Texture* purpleBall = loadTexture(renderer, "..\\Balls\\purpleBall.png");
     if (purpleBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(6);
-    }SDL_Texture* redBall = loadTexture(renderer, "..\\RedBall.png");
+    }SDL_Texture* redBall = loadTexture(renderer, "..\\Balls\\RedBall.png");
     if (redBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(7);
-    }SDL_Texture* yellowBall = loadTexture(renderer, "..\\yellowBall.png");
+    }SDL_Texture* yellowBall = loadTexture(renderer, "..\\Balls\\yellowBall.png");
     if (yellowBall == nullptr) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -1083,7 +1194,22 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     textures[6] = redBall;
     textures[7] = yellowBall;
 }
-
+void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text, int x, int y) {
+    SDL_Color textColor = {255, 255, 255, 255};
+    SDL_Surface* textSurface = TTF_RenderText_Solid(gFont, text.c_str(), textColor);
+    if (textSurface == nullptr) {
+        std::cerr << "Unable to render text surface! SDL_ttf Error: " << TTF_GetError() << std::endl;
+    } else {
+        gTextTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        if (gTextTexture == nullptr) {
+            std::cerr << "Unable to create texture from rendered text! SDL_Error: " << SDL_GetError() << std::endl;
+        } else {
+            SDL_Rect renderQuad = {x, y, textSurface->w, textSurface->h};
+            SDL_RenderCopy(renderer, gTextTexture, nullptr, &renderQuad);
+        }
+        SDL_FreeSurface(textSurface);
+    }
+}
 //
 //while( ball != nullptr ) {
 //ball->value->isSeen = false;
