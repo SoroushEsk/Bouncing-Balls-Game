@@ -25,10 +25,11 @@ int FirstRowY ;
 int leveNumber = 5;
 double shootingBallSpeed = 25;
 int NUMROWS = 1;
-int numberOfTexture = 7;
+int numberOfTexture = 3;
 int impactUp = -6;
 double downSpeed = 0.1;
 int numberBall;
+int BombNumber = 3;
 /// ==================== Struct Definition =====================
 struct Color{
     int red;
@@ -52,7 +53,7 @@ struct Ball {
 
     bool isMultiColor;
 
-    bool isBomb;
+    bool isBomb = false;
 
     bool isLaser;
 
@@ -98,8 +99,10 @@ Color colors [20] = {{1,0,20,255},
                      {255,99,71,255},{124,252,0,255},{0,127,128,255}
 };
 SDL_Texture * textures [8];
-SDL_Texture * backGround;
+SDL_Texture * backGround[4];
+int backGroundIndex = 0;
 SDL_Texture * menuBack;
+SDL_Texture * bomb;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
 std::unordered_map<SDL_Texture*, Color*> existingColor;
@@ -133,7 +136,9 @@ void deleteBalls(Node * sameColor);
 Node * findFloatingBalls();
 void addBarred(SDL_Renderer *renderer, SDL_Window  * window,bool isDisplay);
 void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text, int x, int y);
-
+void settingDisplay(SDL_Renderer * renderer, SDL_Window *window);
+bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, double max_y);
+Node * bombRadius();
 // ============= Implementation ===================================
 int main(int argc, char* argv[]) {
 //    srand(1);
@@ -188,8 +193,10 @@ int main(int argc, char* argv[]) {
                         }else {
                             Mix_HaltMusic();
                         }
+                    } else if (  mouse_y >= (0.32)*(double)(HEIGHT) && mouse_y <= (0.41)*(double)(HEIGHT) && mouse_x <= (0.16)*(double)(WIDTH) && mouse_x >= (0.06)*(double)(WIDTH) ){
+                        settingDisplay(renderer, window);
                     }
-                    std::cout << mouse_x << " " << mouse_y << std::endl;
+
                 }
             } else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
                 quit = true;
@@ -224,6 +231,66 @@ int main(int argc, char* argv[]) {
     SDL_Quit();
     return 0;
 }
+void settingDisplay(SDL_Renderer * renderer, SDL_Window *window){
+    SDL_Texture* settingPage = loadTexture(renderer, "..\\Setting\\setting.png");
+    if (settingPage == nullptr) {
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(2);
+    }
+
+    int mouse_x, mouse_y;
+
+    SDL_Rect back = {0, 0, WIDTH, HEIGHT};
+    SDL_Event event;
+    bool quit = false;
+    while (!quit) {
+        // Handle events
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                quit = true;
+                exit(2);
+            }else if(event.type == SDL_MOUSEBUTTONDOWN) {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    SDL_GetMouseState(&mouse_x, &mouse_y);
+                    if ( isXandYInRect(mouse_x, mouse_y, 0.09, 0.28, 0.13, 0.32)){
+                        return;
+
+                    }else if (isXandYInRect(mouse_x, mouse_y, 0.39, 0.3, 0.6, 0.42)){
+                        backGroundIndex = 0;
+                    } else if(isXandYInRect(mouse_x, mouse_y, 0.39, 0.44, 0.6, 0.55)){
+                        backGroundIndex = 1;
+                    } else if(isXandYInRect(mouse_x, mouse_y, 0.69, 0.44, 0.9, 0.55)){
+                        backGroundIndex = 3;
+                    } else if(isXandYInRect(mouse_x, mouse_y, 0.69, 0.3, 0.9, 0.41)){
+                        backGroundIndex = 2;
+                    }
+                    std::cout << mouse_x << " " << mouse_y << std::endl;
+                }
+            }else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
+                quit = true;
+                exit(2);
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, settingPage, nullptr, &back);
+
+        // Delay to control the loop speed
+        //SDL_Delay(10);
+        SDL_RenderPresent(renderer);
+    }
+}
+bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, double max_y){
+    if ( y >= (min_y)*(double)(HEIGHT) && y <= (max_y)*(double)(HEIGHT) && x <= (max_x)*(double)(WIDTH) && x >= (min_x)*(double)(WIDTH)){
+        return true;
+
+    }
+    else
+        return false;
+}
 void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode){
     Mix_HaltMusic();
     // create a shooting ball
@@ -257,7 +324,14 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
         SDL_Quit();
         exit(1);
     }
-
+    SDL_Texture* victory = loadTexture(renderer, "..\\Game Background\\victory.jpg");
+    if (victory == nullptr) {
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
 
     SDL_Rect back = {0, 0, WIDTH, HEIGHT};
     while (!quit) {
@@ -278,11 +352,20 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
         }
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, backGround, nullptr, &back);
 
-        pointing(renderer, crossbow);drawBalls(renderer);
         // Delay to control the loop speed
         //SDL_Delay(10);
+        if ( allBalls == nullptr ) {
+            SDL_RenderCopy(renderer, victory, nullptr, &back);
+            ///////////////////////////////////////////////////////////////////////////////
+            SDL_RenderPresent(renderer);
+            SDL_Delay(3000);
+            return;
+        }else {
+            SDL_RenderCopy(renderer, backGround[backGroundIndex], nullptr, &back);
+
+            pointing(renderer, crossbow);drawBalls(renderer);
+        }
         SDL_RenderPresent(renderer);
     }
 }
@@ -405,6 +488,11 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
             }
         }
     }
+    static Mix_Music *impactMusic = Mix_LoadMUS("..\\Sounds\\impact.mp3");
+    if (!impactMusic) {
+        exit(3);
+    }
+    Mix_PlayMusic(impactMusic, 1);
     allBalls = AddtoLinkedList(shootingBall, allBalls);
     visibleBalls = AddtoLinkedList(shootingBall, visibleBalls);
     shootingBallAroundBalls();
@@ -414,6 +502,36 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
         deleteBalls(sameColor);
         findFloatingBalls();
     }
+    if ( shootingBall->isBomb){
+        static Mix_Music *music = Mix_LoadMUS("..\\Sounds\\bomb.wav");
+        if (!music) {
+            exit(3);
+        }
+        Node * bombDestruction = bombRadius();
+        deleteBalls(bombDestruction);
+        Mix_PlayMusic(music, 1);
+    }
+}
+Node * bombRadius(){
+    Node * ball = allBalls;
+    while ( ball != nullptr ){
+        ball->value->isSeen = false;
+        ball= ball->next;
+    }
+    Node * result = nullptr;
+    for ( int i = 0 ; i < 6 ; i++ ){
+        if ( shootingBall -> ball[i]){
+            result = AddtoLinkedList(shootingBall->ball[i], result);
+            shootingBall->ball[i]->isSeen = true;
+            for (int j = 0; j < 6; j++) {
+                if (shootingBall->ball[i]->ball[j]) {
+                    result = AddtoLinkedList(shootingBall->ball[i]->ball[j], result);
+                    shootingBall->ball[i]->ball[j]->isSeen = true;
+                }
+            }
+        }
+    }
+    return result;
 }
 Node * findFloatingBalls(){
     Node * ball = allBalls;
@@ -670,6 +788,10 @@ void drawBalls(SDL_Renderer *renderer){
     Ball * currentBall;
     SDL_Rect texture;
     existingColor.clear();
+    Color black = {0,0,0,255};
+    if ( BombNumber != 0){
+        existingColor[bomb] = &black;
+    }
     while( root != nullptr ){
         currentBall = root -> value;
         texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
@@ -781,6 +903,10 @@ void createShootingBall(int levelNum, SDL_Renderer * renderer){
     shootingBall -> raduis = ballRadius;
     shootingBall -> isBlack = false;
     shootingBall -> texture = properTexture;
+    if ( properTexture == bomb ) {
+        shootingBall->isBomb = true;
+        BombNumber--;
+    }
 
     for ( int  b = 0 ; b < 6 ; b++ ){
         shootingBall-> ball[b] = nullptr;
@@ -884,7 +1010,7 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
             }
             SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderClear(renderer);
-            SDL_RenderCopy(renderer, backGround, nullptr, &back);
+            SDL_RenderCopy(renderer, backGround[backGroundIndex], nullptr, &back);
 
             drawBalls(renderer);
             shootingBall->x = source_x;
@@ -1110,14 +1236,39 @@ void addLastRowToLinkedList(Ball * root){
 }
 void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     // --------------- setting the back ground color ----------------
-    SDL_Texture* background = loadTexture(renderer, "..\\GameBack.jpg");
-    if (background == nullptr){
+    SDL_Texture* background1 = loadTexture(renderer, "..\\Game Background/GameBack.jpg");
+    if (background1 == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(1);
-    } backGround = background;
+    }     SDL_Texture* background2 = loadTexture(renderer, "..\\Game Background/GameBack2.jpg");
+    if (background2 == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }    SDL_Texture* background3 = loadTexture(renderer, "..\\Game Background/GameBack3.png");
+    if (background3 == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }    SDL_Texture* background4 = loadTexture(renderer, "..\\Game Background/GameBack4.png");
+    if (background4 == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
+    backGround[0] = background1;
+    backGround[1] = background2;
+    backGround[2] = background3;
+    backGround[3] = background4;
     // --------------- setting the menu background color ----------------
     SDL_Texture* menu_background = loadTexture(renderer, "..\\photo_2024-01-29_16-03-55.jpg");
     if (menu_background == nullptr){
@@ -1193,6 +1344,15 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     textures[5] = purpleBall;
     textures[6] = redBall;
     textures[7] = yellowBall;
+
+    bomb = loadTexture(renderer, "..\\Balls\\bomb.png");
+    if (bomb == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(8);
+    }
 }
 void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text, int x, int y) {
     SDL_Color textColor = {255, 255, 255, 255};
@@ -1217,4 +1377,28 @@ void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text
 //}
 //for ( int i_firstBall_i = 0 ; i_firstBall_i < WIDTH / ( 2 * ballRadius ) + 1; i_firstBall_i++){
 //
+//}
+
+//while (!quit) {
+//// Handle events
+//while (SDL_PollEvent(&event)) {
+//if (event.type == SDL_QUIT) {
+//quit = true;
+//exit(2);
+//}else if(event.type == SDL_MOUSEBUTTONDOWN) {
+//if (event.button.button == SDL_BUTTON_LEFT) {
+//SDL_GetMouseState(&mouse_x, &mouse_y);
+//movingShootingBall(renderer, shootedCrossBow,  mouse_x, mouse_y);
+//}
+//}else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
+//quit = true;
+//exit(2);
+//}
+//}
+//SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+//SDL_RenderClear(renderer);
+//SDL_RenderCopy(renderer, backGround, nullptr, &back);
+
+////SDL_Delay(10);
+//SDL_RenderPresent(renderer);
 //}
