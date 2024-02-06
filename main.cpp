@@ -17,7 +17,7 @@
 #define HEIGHT 1000
 #define DotRadius 3
 #define DotDistance 7
-const int FONT_SIZE = 24;
+const int FONT_SIZE = 50;
 
 /// ******************* Changeable Constraints ****************
 int ballRadius = WIDTH / 30;
@@ -25,7 +25,7 @@ int FirstRowY ;
 int leveNumber = 5;
 double shootingBallSpeed = 25;
 int NUMROWS = 1;
-int numberOfTexture = 3;
+int numberOfTexture = 5;
 int impactUp = -6;
 double downSpeed = 0.1;
 int numberBall;
@@ -73,7 +73,8 @@ struct Node{
 enum GameMode {
     Random,
     TimeLimit,
-    Infinite
+    Infinite,
+    Menu
 };
 
 /// -------------------- Global struct Variables --------------------------------------------
@@ -106,7 +107,7 @@ SDL_Texture * bomb;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
 std::unordered_map<SDL_Texture*, Color*> existingColor;
-
+std::string Username = "";
 
 SDL_Texture* gTextTexture = nullptr;
 //////////////////////////////////////////////////////////////////////////////////////
@@ -139,6 +140,7 @@ void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text
 void settingDisplay(SDL_Renderer * renderer, SDL_Window *window);
 bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, double max_y);
 Node * bombRadius();
+GameMode selectGameMode(SDL_Renderer * renderer, SDL_Window * window, TTF_Font * font);
 // ============= Implementation ===================================
 int main(int argc, char* argv[]) {
 //    srand(1);
@@ -184,8 +186,9 @@ int main(int argc, char* argv[]) {
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     SDL_GetMouseState(&mouse_x, &mouse_y);
                     if ( mouse_y > (.94)*(double)(HEIGHT) && mouse_x > (0.12) * (double)(WIDTH) && mouse_x < (0.8) * (double)WIDTH){
-
-                        startGame(renderer, window, Random);
+                        GameMode sel =selectGameMode(renderer, window, gFont);
+                        if ( sel == Menu ) continue;
+                        startGame(renderer, window, sel);
                     } else if ( mouse_y >= (0.47)*(double)(HEIGHT) && mouse_y <= (0.56)*(double)(HEIGHT) && mouse_x <= (0.16)*(double)(WIDTH) && mouse_x >= (0.06)*(double)(WIDTH)){
                         isMusicStop = !isMusicStop;
                         if (!isMusicStop) {
@@ -200,15 +203,6 @@ int main(int argc, char* argv[]) {
                 }
             } else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
                 quit = true;
-            }else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_RETURN) {
-                    std::cout << "Entered text: " << inputText << std::endl;
-                    inputText = "";
-                } else if (event.key.keysym.sym == SDLK_BACKSPACE && !inputText.empty()) {
-                    inputText.pop_back();
-                } else if ((event.key.keysym.sym >= SDLK_a && event.key.keysym.sym <= SDLK_z) || (event.key.keysym.sym >= SDLK_0 && event.key.keysym.sym <= SDLK_9)) {
-                    inputText += static_cast<char>(event.key.keysym.sym);
-                }
             }
         }
         // Play music if it's not playing
@@ -219,7 +213,6 @@ int main(int argc, char* argv[]) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, menuBack, nullptr, &back);
-        renderText(renderer, gFont, "Enter text: " + inputText, 10, 10);
         addBarred(renderer, window, isMusicStop);
         SDL_RenderPresent(renderer);
     }
@@ -230,6 +223,87 @@ int main(int argc, char* argv[]) {
     Mix_CloseAudio();
     SDL_Quit();
     return 0;
+}
+GameMode selectGameMode(SDL_Renderer * renderer, SDL_Window * window, TTF_Font * font){
+    SDL_Texture* modeSel[2];
+    modeSel[0] = loadTexture(renderer, "..\\StartGame\\GameModeP.png");
+    if (modeSel == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
+    modeSel[1] = loadTexture(renderer, "..\\StartGame\\username.png");
+    if (modeSel == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
+    SDL_Rect back = {0, 0, WIDTH, HEIGHT};
+    SDL_Event event;
+    bool quit = false;
+    bool isUsername = false ;
+    GameMode mode = Menu;
+
+    std::string inputText = "";
+    int mouse_x, mouse_y;
+    while (!quit) {
+        // Handle events
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+            quit = true;
+            exit(2);
+            }else if(event.type == SDL_MOUSEBUTTONDOWN) {
+                if (event.button.button == SDL_BUTTON_LEFT ) {
+                    SDL_GetMouseState(&mouse_x, &mouse_y);
+                    std::cout << mouse_x << " " << mouse_y <<std::endl;
+                    if (isXandYInRect(mouse_x, mouse_y, 0.03, 0.02 , 0.14, 0.12 )){
+                        if ( !isUsername)
+                            return Menu;
+                        else
+                            isUsername = false;
+
+                    }else if (isXandYInRect(mouse_x, mouse_y, 0.17, 0.5, 0.83, 0.83)&& !isUsername){
+                        mode =  TimeLimit;
+                        isUsername = true;
+                    }else if (isXandYInRect(mouse_x, mouse_y, 0.17, 0.39, 0.83, 0.48)&& !isUsername){
+                        mode = Random;
+                        isUsername = true;
+                    }else if (isXandYInRect(mouse_x, mouse_y, 0.17, 0.62, 0.83, 0.8)&& !isUsername){
+                        mode =  Infinite;
+                        isUsername = true;
+                    }
+                }
+            }else if (event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_ESCAPE) {
+                quit = true;
+                exit(2);
+            }else if (event.type == SDL_KEYDOWN && isUsername) {
+                if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
+                    Username = inputText;
+                    inputText = "";
+                    return mode;
+                } else if (event.key.keysym.sym == SDLK_BACKSPACE && !inputText.empty()) {
+                    inputText.pop_back();
+                } else if ((event.key.keysym.sym >= SDLK_a && event.key.keysym.sym <= SDLK_z) || (event.key.keysym.sym >= SDLK_0 && event.key.keysym.sym <= SDLK_9)) {
+                    inputText += static_cast<char>(event.key.keysym.sym);
+                }
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, modeSel[isUsername], nullptr, &back);
+        if (isUsername) {
+            renderText(renderer, font, "Username: " , 0.2*WIDTH, 0.430*HEIGHT);
+            renderText(renderer, font, inputText, 0.2*WIDTH, 0.5*HEIGHT);
+        }
+//
+        //SDL_Delay(10);
+        SDL_RenderPresent(renderer);
+    }
+    return mode;
 }
 void settingDisplay(SDL_Renderer * renderer, SDL_Window *window){
     SDL_Texture* settingPage = loadTexture(renderer, "..\\Setting\\setting.png");
@@ -508,7 +582,8 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
             exit(3);
         }
         Node * bombDestruction = bombRadius();
-        deleteBalls(bombDestruction);
+        if ( bombDestruction)
+            deleteBalls(bombDestruction);
         Mix_PlayMusic(music, 1);
     }
 }
@@ -573,10 +648,12 @@ Node * findFloatingBalls(){
         }
         ball = ball -> next;
     }
-    deleteBalls(floatingBalls);
+    if(floatingBalls)
+        deleteBalls(floatingBalls);
     return floatingBalls;
 }
 void deleteBalls(Node * sameColor){
+    if ( sameColor == nullptr ) return;
     Node * root = sameColor, * temp;
     while ( root != nullptr ){
         allBalls = deleteFromLinkedList(root->value, allBalls);
@@ -801,6 +878,8 @@ void drawBalls(SDL_Renderer *renderer){
             existingColor[root->value->texture] = &root->value->color;
         root = root -> next;
     }
+    Node * floatBalls = findFloatingBalls();
+//    if (floatBalls!= nullptr) deleteBalls(floatBalls);
 }
 void SDLInitialization(SDL_Renderer ** renderer, SDL_Window ** window, TTF_Font** gFont){
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -1236,28 +1315,28 @@ void addLastRowToLinkedList(Ball * root){
 }
 void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     // --------------- setting the back ground color ----------------
-    SDL_Texture* background1 = loadTexture(renderer, "..\\Game Background/GameBack.jpg");
+    SDL_Texture* background1 = loadTexture(renderer, "..\\Game Background\\GameBack.jpg");
     if (background1 == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(1);
-    }     SDL_Texture* background2 = loadTexture(renderer, "..\\Game Background/GameBack2.jpg");
+    }     SDL_Texture* background2 = loadTexture(renderer, "..\\Game Background\\GameBack2.jpg");
     if (background2 == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(1);
-    }    SDL_Texture* background3 = loadTexture(renderer, "..\\Game Background/GameBack3.png");
+    }    SDL_Texture* background3 = loadTexture(renderer, "..\\Game Background\\GameBack3.png");
     if (background3 == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         IMG_Quit();
         SDL_Quit();
         exit(1);
-    }    SDL_Texture* background4 = loadTexture(renderer, "..\\Game Background/GameBack4.png");
+    }    SDL_Texture* background4 = loadTexture(renderer, "..\\Game Background\\GameBack4.png");
     if (background4 == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
