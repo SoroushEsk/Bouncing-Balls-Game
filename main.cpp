@@ -32,6 +32,7 @@ int numberBall;
 int deletedRows;
 int BombNumber = 3;
 int MultiNumber = 3;
+int LazerNumber = 3;
 bool lostMuch = false;
 /// ==================== Struct Definition =====================
 struct Color{
@@ -58,7 +59,7 @@ struct Ball {
 
     bool isBomb = false;
 
-    bool isLaser;
+    bool isLaser = false;
 
     Color color;
     Color color1;
@@ -85,6 +86,7 @@ Ball ** FirstRow = reinterpret_cast<Ball **>(new Ball[  WIDTH / ( 2 * ballRadius
 Ball * shootingBall = nullptr;
 Node * visibleBalls;
 Node * allBalls;
+Node * lazerIm = nullptr;
 Node * bfsQueue;
 
 //----------------------------------------------------------------------------
@@ -104,6 +106,7 @@ Color colors [20] = {{1,0,20,255},
 };
 SDL_Texture * textures [8];
 SDL_Texture * backGround[4];
+SDL_Texture * lazer;
 int backGroundIndex = 0;
 SDL_Texture * menuBack;
 SDL_Texture * bomb;
@@ -146,6 +149,21 @@ bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, doubl
 Node * bombRadius();
 GameMode selectGameMode(SDL_Renderer * renderer, SDL_Window * window, TTF_Font * font);
 // ============= Implementation ===================================
+const int GAME_DURATION_SECONDS = 30;
+
+Uint32 startTime;
+
+void startGameTimer() {
+    startTime = SDL_GetTicks();
+}
+
+bool isGameTimeOver() {
+    Uint32 currentTime = SDL_GetTicks();
+    Uint32 elapsedTime = currentTime - startTime;
+
+    // Check if the elapsed time exceeds the game duration
+    return (elapsedTime >= (GAME_DURATION_SECONDS * 1000));
+}
 int main(int argc, char* argv[]) {
 //    srand(1);
     std::string filename = "output.txt";
@@ -372,7 +390,11 @@ bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, doubl
 void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode){
     Mix_HaltMusic();
     // create a shooting ball
-    level(3);
+    if ( game_mode != Infinite)
+        level(3);
+    else {
+        level(100);
+    }
     drawBalls(renderer);
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
@@ -484,102 +506,97 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
     int differenceX = target -> value -> x - impactX;
     int differenceY = target -> value -> y - impactY;
     Ball * targetBall = target -> value ;
-    if ( slope >= 0) {
-        if ( differenceX >  0  && target -> value -> x != ballRadius && target -> value -> x  != ( WIDTH - ballRadius ) ) {
-            if ( targetBall->ball[3] ){
-                shootingBall -> x = target -> value -> x + ballRadius;
-                shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[5] = targetBall;
-                targetBall -> ball[2] = shootingBall;
-            }
-            else {
-                shootingBall->x = targetBall->x - ballRadius;
-                shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
-                shootingBall->ball[0] = targetBall;
-                targetBall->ball[3] = shootingBall;
-            }
-        } else if ( differenceX < 0 ){
-            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
-                if ( targetBall -> ball[1] ){
-                    shootingBall -> x = target -> value -> x + ballRadius;
-                    shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-                    shootingBall -> ball[5] = targetBall;
-                    targetBall -> ball[2] = shootingBall;
-                }
-                else {
-                    shootingBall -> x = targetBall -> x + 2 * ballRadius;
-                    shootingBall -> y = targetBall -> y ;
-                    shootingBall -> ball[4] = targetBall;
-                    targetBall -> ball[1] = shootingBall;
-                }
-            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
-                if (targetBall -> ball[0]){
-                    shootingBall -> x = targetBall -> x + 2 * ballRadius;
-                    shootingBall -> y = targetBall -> y ;
-                    shootingBall -> ball[4] = targetBall;
-                    targetBall -> ball[1] = shootingBall;
-                }
-                else {
-                    shootingBall->x = targetBall->x + ballRadius;
-                    shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
-                    shootingBall->ball[3] = targetBall;
-                    targetBall->ball[0] = shootingBall;
-                }
-            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
-                ///////////////////////////////////////////////////////////////
-                shootingBall -> x = target -> value -> x + ballRadius;
-                shootingBall -> y = target -> value -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[5] = targetBall;
-                targetBall -> ball[2] = shootingBall;
-            }
-        }
-    }
-    else{
-        if ( differenceX < 0 && target -> value -> x  != ( WIDTH - ballRadius )  && target -> value -> x != ballRadius ){
-            if ( targetBall -> ball[2]){
-                shootingBall -> x = targetBall -> x - ballRadius;
-                shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[0] = targetBall;
-                targetBall -> ball[3] = shootingBall;
-            }
-            else {
-                shootingBall->x = targetBall->x + ballRadius;
-                shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
-                shootingBall->ball[5] = targetBall;
-                targetBall->ball[2] = shootingBall;
-            }
-        } else if ( differenceX > 0 ){
-            if ( abs(differenceY) < ballRadius * sin(M_PI/6) ){
-                if ( targetBall->ball[4] ){
-                    shootingBall -> x = targetBall -> x - ballRadius;
-                    shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-                    shootingBall -> ball[0] = targetBall;
-                    targetBall -> ball[3] = shootingBall;
-                }
-                else{
-                    shootingBall -> x = targetBall -> x - 2 * ballRadius;
-                    shootingBall -> y = targetBall -> y ;
-                    shootingBall -> ball[1] = targetBall;
-                    targetBall -> ball[4] = shootingBall;
-                }
-            } else if ( differenceY >= ballRadius * sin(M_PI/6) && differenceY <= ballRadius) {
-                if ( targetBall -> ball[5] ){
-                    shootingBall -> x = targetBall -> x - 2 * ballRadius;
-                    shootingBall -> y = targetBall -> y ;
-                    shootingBall -> ball[1] = targetBall;
-                    targetBall -> ball[4] = shootingBall;
-                }
-                else {
+    if ( !shootingBall->isLaser){
+        if (slope >= 0) {
+            if (differenceX > 0 && target->value->x != ballRadius && target->value->x != (WIDTH - ballRadius)) {
+                if (targetBall->ball[3]) {
+                    shootingBall->x = target->value->x + ballRadius;
+                    shootingBall->y = target->value->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[5] = targetBall;
+                    targetBall->ball[2] = shootingBall;
+                } else {
                     shootingBall->x = targetBall->x - ballRadius;
-                    shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
-                    shootingBall->ball[2] = targetBall;
-                    targetBall->ball[5] = shootingBall;
+                    shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[0] = targetBall;
+                    targetBall->ball[3] = shootingBall;
                 }
-            } else if ( differenceY <= -1 * ballRadius * sin(M_PI/6) && differenceY >= -ballRadius) {
-                shootingBall -> x = targetBall -> x - ballRadius;
-                shootingBall -> y = targetBall -> y + 2 * ballRadius * cos(M_PI/6);
-                shootingBall -> ball[0] = targetBall;
-                targetBall -> ball[3] = shootingBall;
+            } else if (differenceX < 0) {
+                if (abs(differenceY) < ballRadius * sin(M_PI / 6)) {
+                    if (targetBall->ball[1]) {
+                        shootingBall->x = target->value->x + ballRadius;
+                        shootingBall->y = target->value->y + 2 * ballRadius * cos(M_PI / 6);
+                        shootingBall->ball[5] = targetBall;
+                        targetBall->ball[2] = shootingBall;
+                    } else {
+                        shootingBall->x = targetBall->x + 2 * ballRadius;
+                        shootingBall->y = targetBall->y;
+                        shootingBall->ball[4] = targetBall;
+                        targetBall->ball[1] = shootingBall;
+                    }
+                } else if (differenceY >= ballRadius * sin(M_PI / 6) && differenceY <= ballRadius) {
+                    if (targetBall->ball[0]) {
+                        shootingBall->x = targetBall->x + 2 * ballRadius;
+                        shootingBall->y = targetBall->y;
+                        shootingBall->ball[4] = targetBall;
+                        targetBall->ball[1] = shootingBall;
+                    } else {
+                        shootingBall->x = targetBall->x + ballRadius;
+                        shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
+                        shootingBall->ball[3] = targetBall;
+                        targetBall->ball[0] = shootingBall;
+                    }
+                } else if (differenceY <= -1 * ballRadius * sin(M_PI / 6) && differenceY >= -ballRadius) {
+                    ///////////////////////////////////////////////////////////////
+                    shootingBall->x = target->value->x + ballRadius;
+                    shootingBall->y = target->value->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[5] = targetBall;
+                    targetBall->ball[2] = shootingBall;
+                }
+            }
+        } else {
+            if (differenceX < 0 && target->value->x != (WIDTH - ballRadius) && target->value->x != ballRadius) {
+                if (targetBall->ball[2]) {
+                    shootingBall->x = targetBall->x - ballRadius;
+                    shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[0] = targetBall;
+                    targetBall->ball[3] = shootingBall;
+                } else {
+                    shootingBall->x = targetBall->x + ballRadius;
+                    shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[5] = targetBall;
+                    targetBall->ball[2] = shootingBall;
+                }
+            } else if (differenceX > 0) {
+                if (abs(differenceY) < ballRadius * sin(M_PI / 6)) {
+                    if (targetBall->ball[4]) {
+                        shootingBall->x = targetBall->x - ballRadius;
+                        shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                        shootingBall->ball[0] = targetBall;
+                        targetBall->ball[3] = shootingBall;
+                    } else {
+                        shootingBall->x = targetBall->x - 2 * ballRadius;
+                        shootingBall->y = targetBall->y;
+                        shootingBall->ball[1] = targetBall;
+                        targetBall->ball[4] = shootingBall;
+                    }
+                } else if (differenceY >= ballRadius * sin(M_PI / 6) && differenceY <= ballRadius) {
+                    if (targetBall->ball[5]) {
+                        shootingBall->x = targetBall->x - 2 * ballRadius;
+                        shootingBall->y = targetBall->y;
+                        shootingBall->ball[1] = targetBall;
+                        targetBall->ball[4] = shootingBall;
+                    } else {
+                        shootingBall->x = targetBall->x - ballRadius;
+                        shootingBall->y = targetBall->y - 2 * ballRadius * cos(M_PI / 6);
+                        shootingBall->ball[2] = targetBall;
+                        targetBall->ball[5] = shootingBall;
+                    }
+                } else if (differenceY <= -1 * ballRadius * sin(M_PI / 6) && differenceY >= -ballRadius) {
+                    shootingBall->x = targetBall->x - ballRadius;
+                    shootingBall->y = targetBall->y + 2 * ballRadius * cos(M_PI / 6);
+                    shootingBall->ball[0] = targetBall;
+                    targetBall->ball[3] = shootingBall;
+                }
             }
         }
     }
@@ -607,7 +624,7 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
             deleteBalls(bombDestruction);
         Mix_PlayMusic(music, 1);
     }else if (shootingBall->isMultiColor){
-        Node * multiDestruct;
+        Node * multiDestruct = nullptr;
 
         for ( int i = 0 ; i < 6 ; i++ ) {
             if ( shootingBall->ball[i] ){
@@ -615,8 +632,38 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
             }
             deleteBalls(multiDestruct);
         }
+    }else if ( shootingBall -> isLaser){
+        deleteBalls(lazerIm);
     }
 }
+//void upFirstRow(){
+//    int x, y;
+//    if ( FirstRow[0] )
+//    Ball *ballTemp, *previousBall = nullptr;
+//    int isBlack;
+//    for ( int ballIndex = 0 ; ballIndex <WIDTH/(2 * ballRadius)  ; ballIndex++) {
+//        ballTemp = new Ball;
+//        ballTemp->x = x;
+//        ballTemp->y = y;
+//        ballTemp->raduis = ballRadius;
+//        isBlack = rand()%(numberOfTexture-1) + 1;
+//        ballTemp->color = colors[isBlack];
+//        ballTemp->texture = textures[isBlack];
+//        ballTemp->isBlack = isBlack == 0;
+//        allBalls = AddtoLinkedList(ballTemp, allBalls);
+//        for ( int ballptr = 0 ; ballptr < 6 ; ballptr++ ){
+//            ballTemp->ball[ballptr] = nullptr;
+//        }
+//        if(previousBall != nullptr){
+//            ballTemp -> ball[4] = previousBall;
+//            previousBall -> ball[1] = ballTemp;
+//        }
+//        FirstRow[ballIndex] =  ballTemp;
+//        previousBall = ballTemp;
+//        x+=2*ballRadius;
+//    }
+//
+//}
 Node * bombRadius(){
     Node * ball = allBalls;
     while ( ball != nullptr ){
@@ -901,6 +948,10 @@ void drawBalls(SDL_Renderer *renderer){
         existingColor[bomb] = &black;
     }
     existingColor[multi] = &white;
+    Color red = {255, 0,0,255};
+    if ( LazerNumber != 0){
+        existingColor[lazer] = &red;
+    }
     while( root != nullptr ){
         currentBall = root -> value;
         texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
@@ -1021,6 +1072,9 @@ void createShootingBall(int levelNum, SDL_Renderer * renderer){
     }else if (properTexture == multi){
         shootingBall->isMultiColor = true;
         MultiNumber--;
+    } else if ( properTexture == lazer){
+        shootingBall -> isLaser = true;
+        LazerNumber--;
     }
 
     for ( int  b = 0 ; b < 6 ; b++ ){
@@ -1041,6 +1095,7 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
     double minY;
     double minLineCircle;
     bool isIncX = true;
+    lazerIm = nullptr;
 //
     source_x = shootingBall->x;
     source_y = shootingBall->y;
@@ -1074,10 +1129,17 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
         minBall = nullptr;
         minLineCircle = 0;
         root = allBalls;
+        lazerIm = nullptr;
         while( root != nullptr ){
             lineCircle_x =lineCircleImpact(root->value->x, root->value->y, root->value->raduis, slope, source_y - slope * source_x) ;
             if ( lineCircle_x != 0 )
             {
+                lazerIm = AddtoLinkedList(root->value, lazerIm);
+                for ( int isth= 0 ; isth < 6; isth++){
+                    if ( root -> value ->ball[isth] ){
+                        lazerIm = AddtoLinkedList(root->value->ball[isth], lazerIm);
+                    }
+                }
                 if ( minY < source_y + slope * (lineCircle_x - source_x)) {
                     minY = source_y + slope * (lineCircle_x - source_x);
                     minBall = root ;
@@ -1315,7 +1377,7 @@ void nextRow(Ball *first, bool isEven, int numColor){
 void level(int levelNumber){
     NUMROWS = levelNumber * 3 ;
     int numColor = levelNumber ;
-    FirstRowY = -ballRadius*sqrt(3)*(NUMROWS - 1 - 5);
+    FirstRowY = -ballRadius*sqrt(3)*(NUMROWS - 1 );
     createBallRowOne(numColor);
     Ball * rootRow = FirstRow[0], *lastRowStart;
     bool isOdd = true;
@@ -1476,6 +1538,15 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
         SDL_Quit();
         exit(8);
     }
+
+    lazer = loadTexture(renderer, "..\\Balls\\lazer.png");
+    if (lazer == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(8);
+    }
 }
 void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text, int x, int y) {
     SDL_Color textColor = {255, 255, 255, 255};
@@ -1493,6 +1564,7 @@ void renderText(SDL_Renderer* renderer, TTF_Font* gFont, const std::string& text
         SDL_FreeSurface(textSurface);
     }
 }
+
 //
 //while( ball != nullptr ) {
 //ball->value->isSeen = false;
