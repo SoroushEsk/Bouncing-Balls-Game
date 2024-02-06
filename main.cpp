@@ -395,6 +395,11 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
     else {
         level(100);
     }
+
+    Mix_Music *music = Mix_LoadMUS("..\\Sounds\\play1.mp3");
+    if (!music) {
+        exit(3);
+    }
     drawBalls(renderer);
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
@@ -405,6 +410,7 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
     SDL_Event event;
     bool quit = false;
 
+    bool isMusicPlaying = false;
     // additional details of mouse
     int mouse_x, mouse_y;
 
@@ -443,6 +449,7 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
     SDL_Rect back = {0, 0, WIDTH, HEIGHT};
     while (!quit) {
         // Handle events
+
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 quit = true;
@@ -468,7 +475,7 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
             SDL_RenderPresent(renderer);
             SDL_Delay(3000);
             return;
-        }else if (lostMuch){
+        }else if (lostMuch && ( game_mode == TimeLimit && isGameTimeOver())){
             SDL_RenderCopy(renderer, fail, nullptr, &back);
             ///////////////////////////////////////////////////////////////////////////////
             SDL_RenderPresent(renderer);
@@ -482,6 +489,11 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
             SDL_Rect  rect = {0, HEIGHT - 130, WIDTH, 10};
             SDL_SetRenderDrawColor(renderer, 255,0,0,255);
             SDL_RenderFillRect(renderer,&rect);
+        }
+        // Play music if it's not playing
+        if (!isMusicPlaying) {
+            Mix_PlayMusic(music, -1);
+            isMusicPlaying = true;
         }
         SDL_RenderPresent(renderer);
     }
@@ -1200,6 +1212,9 @@ void movingShootingBall(SDL_Renderer * renderer, SDL_Texture * crossbowShooted, 
             source_y += isIncX ? shootingBallSpeed * incSign * slope : -1 * shootingBallSpeed ;
             SDL_Rect texture = {static_cast<int>(shootingBall->x - shootingBall->raduis),static_cast<int>(shootingBall->y - shootingBall->raduis), static_cast<int>(2 * shootingBall->raduis), static_cast<int>(2 * shootingBall->raduis)};
             SDL_RenderCopy(renderer, shootingBall->texture, nullptr, &texture);
+            SDL_Rect  rect = {0, HEIGHT - 130, WIDTH, 10};
+            SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+            SDL_RenderFillRect(renderer,&rect);
             renderTexture(crossbowShooted, renderer, (WIDTH - 180)/2, HEIGHT - 130, angle, &center, SDL_FLIP_NONE);
             SDL_RenderPresent(renderer);
 
