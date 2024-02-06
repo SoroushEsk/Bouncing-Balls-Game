@@ -27,9 +27,12 @@ double shootingBallSpeed = 25;
 int NUMROWS = 1;
 int numberOfTexture = 5;
 int impactUp = -6;
-double downSpeed = 0.1;
+double downSpeed = 0.2;
 int numberBall;
+int deletedRows;
 int BombNumber = 3;
+int MultiNumber = 3;
+bool lostMuch = false;
 /// ==================== Struct Definition =====================
 struct Color{
     int red;
@@ -104,6 +107,7 @@ SDL_Texture * backGround[4];
 int backGroundIndex = 0;
 SDL_Texture * menuBack;
 SDL_Texture * bomb;
+SDL_Texture * multi;
 Color Dot = {50, 70 , 120, 255};
 Color BackGround = {10, 20, 30, 220};
 std::unordered_map<SDL_Texture*, Color*> existingColor;
@@ -406,7 +410,14 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
         SDL_Quit();
         exit(1);
     }
-
+    SDL_Texture* fail = loadTexture(renderer, "..\\Game Background\\fail.jpg");
+    if (fail == nullptr) {
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(1);
+    }
     SDL_Rect back = {0, 0, WIDTH, HEIGHT};
     while (!quit) {
         // Handle events
@@ -435,10 +446,20 @@ void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode)
             SDL_RenderPresent(renderer);
             SDL_Delay(3000);
             return;
+        }else if (lostMuch){
+            SDL_RenderCopy(renderer, fail, nullptr, &back);
+            ///////////////////////////////////////////////////////////////////////////////
+            SDL_RenderPresent(renderer);
+            SDL_Delay(3000);
+            return;
         }else {
             SDL_RenderCopy(renderer, backGround[backGroundIndex], nullptr, &back);
 
             pointing(renderer, crossbow);drawBalls(renderer);
+
+            SDL_Rect  rect = {0, HEIGHT - 130, WIDTH, 10};
+            SDL_SetRenderDrawColor(renderer, 255,0,0,255);
+            SDL_RenderFillRect(renderer,&rect);
         }
         SDL_RenderPresent(renderer);
     }
@@ -585,6 +606,15 @@ void connectShootingBall(Node * target, int impactY, int impactX, double slope )
         if ( bombDestruction)
             deleteBalls(bombDestruction);
         Mix_PlayMusic(music, 1);
+    }else if (shootingBall->isMultiColor){
+        Node * multiDestruct;
+
+        for ( int i = 0 ; i < 6 ; i++ ) {
+            if ( shootingBall->ball[i] ){
+                multiDestruct = findSameColorBall(shootingBall->ball[i], &sameColorNumber);
+            }
+            deleteBalls(multiDestruct);
+        }
     }
 }
 Node * bombRadius(){
@@ -866,9 +896,11 @@ void drawBalls(SDL_Renderer *renderer){
     SDL_Rect texture;
     existingColor.clear();
     Color black = {0,0,0,255};
+    Color white = {255, 255, 255, 255};
     if ( BombNumber != 0){
         existingColor[bomb] = &black;
     }
+    existingColor[multi] = &white;
     while( root != nullptr ){
         currentBall = root -> value;
         texture = {static_cast<int>(currentBall->x - currentBall->raduis), static_cast<int>(currentBall->y - currentBall->raduis), static_cast<int>(2 * currentBall->raduis), static_cast<int>(2 * currentBall->raduis)};
@@ -876,6 +908,7 @@ void drawBalls(SDL_Renderer *renderer){
         root -> value -> y += downSpeed;
         if ( root -> value -> texture != textures[0] )
             existingColor[root->value->texture] = &root->value->color;
+        if ( root->value->y  + ballRadius > HEIGHT - 130) lostMuch = true;
         root = root -> next;
     }
     Node * floatBalls = findFloatingBalls();
@@ -985,6 +1018,9 @@ void createShootingBall(int levelNum, SDL_Renderer * renderer){
     if ( properTexture == bomb ) {
         shootingBall->isBomb = true;
         BombNumber--;
+    }else if (properTexture == multi){
+        shootingBall->isMultiColor = true;
+        MultiNumber--;
     }
 
     for ( int  b = 0 ; b < 6 ; b++ ){
@@ -1425,6 +1461,14 @@ void setTexture(SDL_Renderer * renderer, SDL_Window * window){
     textures[7] = yellowBall;
 
     bomb = loadTexture(renderer, "..\\Balls\\bomb.png");
+    if (bomb == nullptr){
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        exit(8);
+    }
+    multi = loadTexture(renderer, "..\\Balls\\MultiColor.png");
     if (bomb == nullptr){
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
