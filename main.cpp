@@ -25,7 +25,7 @@ int FirstRowY ;
 int leveNumber = 5;
 double shootingBallSpeed = 25;
 int NUMROWS = 1;
-int numberOfTexture = 5;
+int numberOfTexture = 8;
 int impactUp = -6;
 double downSpeed = 0.2;
 int numberBall;
@@ -54,7 +54,7 @@ struct Ball {
 
     bool isChained;
 
-    bool isMultiColor;
+    bool isMultiColor = false;
 
     bool isBomb = false;
 
@@ -299,10 +299,10 @@ GameMode selectGameMode(SDL_Renderer * renderer, SDL_Window * window, TTF_Font *
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, modeSel[isUsername], nullptr, &back);
-        if (isUsername) {
-            renderText(renderer, font, "Username: " , 0.2*WIDTH, 0.430*HEIGHT);
-            renderText(renderer, font, inputText, 0.2*WIDTH, 0.5*HEIGHT);
-        }
+//        if (isUsername) {
+//            renderText(renderer, font, "Username: " , 0.2*WIDTH, 0.430*HEIGHT);
+//            renderText(renderer, font, inputText, 0.2*WIDTH, 0.5*HEIGHT);
+//        }
 //
         //SDL_Delay(10);
         SDL_RenderPresent(renderer);
@@ -372,7 +372,7 @@ bool isXandYInRect(int x, int y, double min_x, double min_y, double max_x, doubl
 void startGame(SDL_Renderer *renderer, SDL_Window  * window, GameMode game_mode){
     Mix_HaltMusic();
     // create a shooting ball
-    level(1);
+    level(3);
     drawBalls(renderer);
     createShootingBall(leveNumber, renderer);
     Dot.red = shootingBall->color.red;
