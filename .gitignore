@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Photoshop files
+*.psd
+
+# Unused folders
+/cmake-build-debug/
